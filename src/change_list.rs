@@ -171,7 +171,11 @@ fn get_printed_status(status: Status, statuses_to_check: [Status; 5]) -> Option<
 fn make_order_map() -> HashMap<Status, usize> {
     let status_length = INDEX_STATUSES.len();
 
-    let mut order_map = HashMap::<Status, usize>::new();
+    let capacity = status_length * 4 + (2 * status_length.pow(2)) + 1;
+    let mut order_map = HashMap::<Status, usize>::with_capacity(capacity);
+
+    let not_added_priority = (2 + status_length) * status_length;
+    let conflicted_base_priority = not_added_priority + 1;
 
     for i in 0..status_length {
         let index_status = INDEX_STATUSES[i];
@@ -180,15 +184,28 @@ fn make_order_map() -> HashMap<Status, usize> {
         order_map.insert(index_status, i);
         order_map.insert(worktree_status, i + status_length);
 
+        order_map.insert(
+            index_status | Status::CONFLICTED,
+            conflicted_base_priority + i,
+        );
+        order_map.insert(
+            worktree_status | Status::CONFLICTED,
+            conflicted_base_priority + i + status_length,
+        );
+
         for (j, index_status_2) in INDEX_STATUSES.into_iter().enumerate() {
+            let combined_status = index_status_2 | worktree_status;
             let priority = (i + 2) * status_length + j;
-            order_map.insert(index_status_2 | worktree_status, priority);
+            order_map.insert(combined_status, priority);
+
+            order_map.insert(
+                combined_status | Status::CONFLICTED,
+                conflicted_base_priority + priority,
+            );
         }
     }
 
-    order_map.insert(Status::WT_NEW, (2 + status_length) * status_length);
-
-    // TODO: Deal with conflicted
+    order_map.insert(Status::WT_NEW, not_added_priority);
 
     order_map
 }
