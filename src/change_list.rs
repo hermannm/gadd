@@ -171,7 +171,7 @@ fn make_order_map() -> HashMap<Status, usize> {
         let worktree_status = WORKTREE_STATUSES[i];
 
         order_map.insert(index_status, i);
-        order_map.insert(worktree_status, i);
+        order_map.insert(worktree_status, i + status_length);
 
         for (j, index_status_2) in INDEX_STATUSES.into_iter().enumerate() {
             let priority = (i + 2) * status_length + j;
@@ -179,7 +179,7 @@ fn make_order_map() -> HashMap<Status, usize> {
         }
     }
 
-    order_map.insert(Status::WT_NEW, (2 + status_length) * status_length + 2);
+    order_map.insert(Status::WT_NEW, (2 + status_length) * status_length);
 
     // TODO: Deal with conflicted
 
