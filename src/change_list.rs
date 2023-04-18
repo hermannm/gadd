@@ -9,7 +9,7 @@ use git2::{Index, Repository, Status};
 
 use crate::{
     statuses::{get_status_symbol, StatusPriorityMap, INDEX_STATUSES, WORKTREE_STATUSES},
-    utils::bytes_to_path,
+    utils::{bytes_to_path, new_index_entry},
 };
 
 pub(super) struct ChangeList<'repo> {
@@ -75,6 +75,11 @@ impl<'repo> ChangeList<'repo> {
                 .compare_statuses(&change_1.status, &change_2.status)
         });
 
+        let changes_length = self.changes.len();
+        if self.index_of_selected_change >= changes_length {
+            self.index_of_selected_change = changes_length - 1;
+        }
+
         Ok(())
     }
 
@@ -126,17 +131,32 @@ impl<'repo> ChangeList<'repo> {
     }
 
     pub fn stage_selected_change(&mut self) -> Result<()> {
-        let change = &mut self.changes[self.index_of_selected_change];
+        let change = &self.changes[self.index_of_selected_change];
         let path = bytes_to_path(&change.path);
         self.index.add_path(path)?;
         self.index.write()?;
+        self.refresh_changes()?;
+        Ok(())
+    }
+
+    pub fn unstage_selected_change(&mut self) -> Result<()> {
+        let change = &self.changes[self.index_of_selected_change];
+        let path = bytes_to_path(&change.path);
+
+        let head = self.repository.head()?;
+        let tree = head.peel_to_tree()?;
+        let tree_entry = tree.get_path(path)?;
+
+        let index_entry = new_index_entry(
+            tree_entry.id(),
+            tree_entry.filemode() as u32,
+            change.path.clone(),
+        );
+
+        self.index.add(&index_entry)?;
+        self.index.write()?;
 
         self.refresh_changes()?;
-
-        let changes_length = self.changes.len();
-        if self.index_of_selected_change >= changes_length {
-            self.index_of_selected_change = changes_length - 1;
-        }
 
         Ok(())
     }
