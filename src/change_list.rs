@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    io::{Stdout, Write},
+    io::{StdoutLock, Write},
 };
 
 use anyhow::{Context, Result};
@@ -79,7 +79,7 @@ impl<'repo> ChangeList<'repo> {
         Ok(())
     }
 
-    pub fn render(&self, stdout: &mut Stdout) -> Result<()> {
+    pub fn render(&self, stdout: &mut StdoutLock) -> Result<()> {
         for (i, change) in self.changes.iter().enumerate() {
             let status = change.status;
 

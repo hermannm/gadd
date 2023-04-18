@@ -1,4 +1,4 @@
-use std::io::{stdout, Stdout, Write};
+use std::io::{stdout, StdoutLock, Write};
 
 use anyhow::{Context, Result};
 use crossterm::{
@@ -18,7 +18,7 @@ mod utils;
 fn main() -> Result<()> {
     let _cleanup = Cleanup;
 
-    let mut stdout = stdout();
+    let mut stdout = stdout().lock();
 
     terminal::enable_raw_mode()?;
 
@@ -37,7 +37,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-pub(self) fn render(stdout: &mut Stdout, change_list: &ChangeList) -> Result<()> {
+pub(self) fn render(stdout: &mut StdoutLock, change_list: &ChangeList) -> Result<()> {
     stdout.queue(terminal::Clear(ClearType::All))?;
 
     change_list.render(stdout)?;

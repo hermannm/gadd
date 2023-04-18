@@ -1,4 +1,4 @@
-use std::io::{Stdout, Write};
+use std::io::{StdoutLock, Write};
 
 use anyhow::Result;
 use crossterm::{
@@ -10,7 +10,7 @@ use crossterm::{
 use crate::{change_list::ChangeList, render};
 
 pub(super) fn user_input_event_loop(
-    stdout: &mut Stdout,
+    stdout: &mut StdoutLock,
     change_list: &mut ChangeList,
 ) -> Result<()> {
     loop {
@@ -48,7 +48,7 @@ const INPUT_CONTROLS: [[&str; 2]; 4] = [
     ["[down]", "move down"],
 ];
 
-pub(super) fn render_input_controls(stdout: &mut Stdout) -> Result<()> {
+pub(super) fn render_input_controls(stdout: &mut StdoutLock) -> Result<()> {
     for (i, [button, description]) in INPUT_CONTROLS.into_iter().enumerate() {
         stdout.queue(SetForegroundColor(Color::Blue))?;
         stdout.write_all(button.as_bytes())?;
