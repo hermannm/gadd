@@ -28,11 +28,7 @@ fn main() -> Result<()> {
 
     let repository = Repository::discover(".").context("Failed to open repository")?;
 
-    let statuses = repository
-        .statuses(None)
-        .context("Failed to get statuses of changes in repository")?;
-
-    let mut change_list = ChangeList::new(&repository, &statuses)?;
+    let mut change_list = ChangeList::new(&repository)?;
 
     render(&mut stdout, &change_list)?;
 

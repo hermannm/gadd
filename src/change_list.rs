@@ -8,60 +8,80 @@ use crossterm::{
     style::{Color, ResetColor, SetBackgroundColor, SetForegroundColor},
     QueueableCommand,
 };
-use git2::{Index, Repository, Status, StatusEntry, Statuses};
+use git2::{Index, Repository, Status};
+
+use crate::utils::bytes_to_path;
 
 pub(super) struct ChangeList<'repo> {
     repository: &'repo Repository,
     index: Index,
-    changes: Vec<StatusEntry<'repo>>,
+    changes: Vec<Change>,
     index_of_selected_change: usize,
+    order_map: HashMap<Status, usize>,
+}
+
+pub(super) struct Change {
+    path: Vec<u8>,
+    status: Status,
 }
 
 impl<'repo> ChangeList<'repo> {
-    pub(super) fn new(
-        repository: &'repo Repository,
-        statuses: &'repo Statuses,
-    ) -> Result<ChangeList<'repo>> {
+    pub fn new(repository: &'repo Repository) -> Result<ChangeList<'repo>> {
         let index = repository
             .index()
             .context("Failed to get Git index for repository")?;
 
-        let mut changes = Vec::<StatusEntry>::new();
-        for status_entry in statuses.into_iter() {
-            if !status_entry.status().is_ignored() {
-                changes.push(status_entry);
+        let order_map = make_order_map();
+
+        let mut change_list = ChangeList {
+            repository,
+            index,
+            changes: Vec::<Change>::new(),
+            index_of_selected_change: 0,
+            order_map,
+        };
+
+        change_list.refresh_changes()?;
+
+        for (i, change) in change_list.changes.iter().enumerate() {
+            if change.status == Status::WT_NEW && i > 0 {
+                change_list.index_of_selected_change = i - 1;
+            } else if i == change_list.changes.len() - 1 {
+                change_list.index_of_selected_change = i;
             }
         }
 
-        let order_map = make_order_map();
+        Ok(change_list)
+    }
 
-        changes.sort_by(|status_entry_1, status_entry_2| {
-            let priority_1 = order_map[&status_entry_1.status()];
-            let priority_2 = order_map[&status_entry_2.status()];
+    pub fn refresh_changes(&mut self) -> Result<()> {
+        let statuses = self.repository.statuses(None)?;
+
+        self.changes = Vec::<Change>::with_capacity(statuses.len());
+
+        for status_entry in statuses.iter() {
+            let status = status_entry.status();
+
+            if !status.is_ignored() {
+                self.changes.push(Change {
+                    path: status_entry.path_bytes().to_owned(),
+                    status,
+                });
+            }
+        }
+
+        self.changes.sort_by(|status_entry_1, status_entry_2| {
+            let priority_1 = self.order_map[&status_entry_1.status];
+            let priority_2 = self.order_map[&status_entry_2.status];
             priority_1.cmp(&priority_2)
         });
 
-        let mut index_of_selected_change = 0;
-
-        for (i, change) in changes.iter().enumerate() {
-            if change.status() == Status::WT_NEW && i > 0 {
-                index_of_selected_change = i - 1;
-            } else if i == changes.len() - 1 {
-                index_of_selected_change = i;
-            }
-        }
-
-        Ok(ChangeList {
-            repository,
-            index,
-            changes,
-            index_of_selected_change,
-        })
+        Ok(())
     }
 
-    pub(super) fn render(&self, stdout: &mut Stdout) -> Result<()> {
+    pub fn render(&self, stdout: &mut Stdout) -> Result<()> {
         for (i, change) in self.changes.iter().enumerate() {
-            let status = change.status();
+            let status = change.status;
 
             if status == Status::WT_NEW {
                 stdout.queue(SetForegroundColor(Color::Red))?;
@@ -95,7 +115,7 @@ impl<'repo> ChangeList<'repo> {
                     .queue(SetForegroundColor(Color::Black))?;
             }
 
-            stdout.write_all(change.path_bytes())?;
+            stdout.write_all(&change.path)?;
 
             if is_selected_change {
                 stdout.queue(ResetColor)?;
@@ -107,13 +127,22 @@ impl<'repo> ChangeList<'repo> {
         Ok(())
     }
 
-    pub(super) fn increment_selected_change(&mut self) {
+    pub fn stage_selected_change(&mut self) -> Result<()> {
+        let change = &mut self.changes[self.index_of_selected_change];
+        let path = bytes_to_path(&change.path);
+        self.index.add_path(path)?;
+        self.index.write()?;
+        self.refresh_changes()?;
+        Ok(())
+    }
+
+    pub fn increment_selected_change(&mut self) {
         if self.index_of_selected_change < self.changes.len() - 1 {
             self.index_of_selected_change += 1;
         }
     }
 
-    pub(super) fn decrement_selected_change(&mut self) {
+    pub fn decrement_selected_change(&mut self) {
         if self.index_of_selected_change > 0 {
             self.index_of_selected_change -= 1;
         }

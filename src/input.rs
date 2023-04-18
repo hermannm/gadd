@@ -21,6 +21,10 @@ pub(super) fn user_input_event_loop(
                 KeyCode::Enter => {
                     break;
                 }
+                KeyCode::Char(' ') => {
+                    change_list.stage_selected_change()?;
+                    render(stdout, change_list)?;
+                }
                 KeyCode::Up => {
                     change_list.decrement_selected_change();
                     render(stdout, change_list)?;
@@ -37,8 +41,9 @@ pub(super) fn user_input_event_loop(
     Ok(())
 }
 
-const INPUT_CONTROLS: [[&str; 2]; 3] = [
+const INPUT_CONTROLS: [[&str; 2]; 4] = [
     ["[enter]", "done"],
+    ["[space]", "stage change"],
     ["[up]", "move up"],
     ["[down]", "move down"],
 ];
