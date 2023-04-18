@@ -132,7 +132,14 @@ impl<'repo> ChangeList<'repo> {
         let path = bytes_to_path(&change.path);
         self.index.add_path(path)?;
         self.index.write()?;
+
         self.refresh_changes()?;
+
+        let changes_length = self.changes.len();
+        if self.index_of_selected_change >= changes_length {
+            self.index_of_selected_change = changes_length - 1;
+        }
+
         Ok(())
     }
 
