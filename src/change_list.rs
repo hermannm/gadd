@@ -1,7 +1,4 @@
-use std::{
-    collections::HashMap,
-    io::{StdoutLock, Write},
-};
+use std::io::{StdoutLock, Write};
 
 use anyhow::{Context, Result};
 use crossterm::{
@@ -10,14 +7,17 @@ use crossterm::{
 };
 use git2::{Index, Repository, Status};
 
-use crate::utils::bytes_to_path;
+use crate::{
+    statuses::{get_status_symbol, StatusPriorityMap, INDEX_STATUSES, WORKTREE_STATUSES},
+    utils::bytes_to_path,
+};
 
 pub(super) struct ChangeList<'repo> {
     repository: &'repo Repository,
     index: Index,
     changes: Vec<Change>,
     index_of_selected_change: usize,
-    order_map: HashMap<Status, usize>,
+    status_priority_map: StatusPriorityMap,
 }
 
 pub(super) struct Change {
@@ -31,14 +31,14 @@ impl<'repo> ChangeList<'repo> {
             .index()
             .context("Failed to get Git index for repository")?;
 
-        let order_map = make_order_map();
+        let status_priority_map = StatusPriorityMap::new();
 
         let mut change_list = ChangeList {
             repository,
             index,
             changes: Vec::<Change>::new(),
             index_of_selected_change: 0,
-            order_map,
+            status_priority_map,
         };
 
         change_list.refresh_changes()?;
@@ -70,10 +70,9 @@ impl<'repo> ChangeList<'repo> {
             }
         }
 
-        self.changes.sort_by(|status_entry_1, status_entry_2| {
-            let priority_1 = self.order_map[&status_entry_1.status];
-            let priority_2 = self.order_map[&status_entry_2.status];
-            priority_1.cmp(&priority_2)
+        self.changes.sort_by(|change_1, change_2| {
+            self.status_priority_map
+                .compare_statuses(&change_1.status, &change_2.status)
         });
 
         Ok(())
@@ -88,18 +87,17 @@ impl<'repo> ChangeList<'repo> {
                 stdout.write_all("??".as_bytes())?;
                 stdout.queue(ResetColor)?;
             } else {
-                if let Some(printed_index_status) = get_printed_status(status, INDEX_STATUSES) {
+                if let Some(index_status_symbol) = get_status_symbol(status, INDEX_STATUSES) {
                     stdout.queue(SetForegroundColor(Color::Green))?;
-                    stdout.write_all(printed_index_status.as_bytes())?;
+                    stdout.write_all(index_status_symbol.as_bytes())?;
                     stdout.queue(ResetColor)?;
                 } else {
                     stdout.write_all(" ".as_bytes())?;
                 }
 
-                if let Some(printed_worktree_status) = get_printed_status(status, WORKTREE_STATUSES)
-                {
+                if let Some(worktree_status_symbol) = get_status_symbol(status, WORKTREE_STATUSES) {
                     stdout.queue(SetForegroundColor(Color::Red))?;
-                    stdout.write_all(printed_worktree_status.as_bytes())?;
+                    stdout.write_all(worktree_status_symbol.as_bytes())?;
                     stdout.queue(ResetColor)?;
                 } else {
                     stdout.write_all(" ".as_bytes())?;
@@ -155,73 +153,3 @@ impl<'repo> ChangeList<'repo> {
         }
     }
 }
-
-fn get_printed_status(status: Status, statuses_to_check: [Status; 5]) -> Option<&'static str> {
-    let status_symbols = ["M", "A", "R", "T", "D"];
-
-    for (i, status_to_check) in statuses_to_check.into_iter().enumerate() {
-        if status.intersects(status_to_check) {
-            return Some(status_symbols[i]);
-        }
-    }
-
-    None
-}
-
-fn make_order_map() -> HashMap<Status, usize> {
-    let status_length = INDEX_STATUSES.len();
-
-    let capacity = status_length * 4 + (2 * status_length.pow(2)) + 1;
-    let mut order_map = HashMap::<Status, usize>::with_capacity(capacity);
-
-    let not_added_priority = (2 + status_length) * status_length;
-    let conflicted_base_priority = not_added_priority + 1;
-
-    for i in 0..status_length {
-        let index_status = INDEX_STATUSES[i];
-        let worktree_status = WORKTREE_STATUSES[i];
-
-        order_map.insert(index_status, i);
-        order_map.insert(worktree_status, i + status_length);
-
-        order_map.insert(
-            index_status | Status::CONFLICTED,
-            conflicted_base_priority + i,
-        );
-        order_map.insert(
-            worktree_status | Status::CONFLICTED,
-            conflicted_base_priority + i + status_length,
-        );
-
-        for (j, index_status_2) in INDEX_STATUSES.into_iter().enumerate() {
-            let combined_status = index_status_2 | worktree_status;
-            let priority = (i + 2) * status_length + j;
-            order_map.insert(combined_status, priority);
-
-            order_map.insert(
-                combined_status | Status::CONFLICTED,
-                conflicted_base_priority + priority,
-            );
-        }
-    }
-
-    order_map.insert(Status::WT_NEW, not_added_priority);
-
-    order_map
-}
-
-const INDEX_STATUSES: [Status; 5] = [
-    Status::INDEX_MODIFIED,
-    Status::INDEX_NEW,
-    Status::INDEX_RENAMED,
-    Status::INDEX_TYPECHANGE,
-    Status::INDEX_DELETED,
-];
-
-const WORKTREE_STATUSES: [Status; 5] = [
-    Status::WT_MODIFIED,
-    Status::WT_NEW,
-    Status::WT_RENAMED,
-    Status::WT_TYPECHANGE,
-    Status::WT_DELETED,
-];

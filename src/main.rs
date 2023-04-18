@@ -13,6 +13,7 @@ use crate::change_list::ChangeList;
 
 mod change_list;
 mod input;
+mod statuses;
 mod utils;
 
 fn main() -> Result<()> {
