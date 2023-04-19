@@ -9,30 +9,21 @@ use crate::{
 
 pub(super) struct ChangeOrdering {
     map: HashMap<Vec<u8>, usize>,
-    status_priorities: StatusPriorityMap,
 }
 
 impl ChangeOrdering {
     pub fn sort_changes_and_save_ordering(changes: &mut Vec<Change>) -> ChangeOrdering {
+        StatusPriorityMap::new().sort_changes_by_status(changes);
+
         let mut ordering = ChangeOrdering {
             map: HashMap::with_capacity(changes.len()),
-            status_priorities: StatusPriorityMap::new(),
         };
-
-        ordering.sort_changes_by_status(changes);
 
         for (i, change) in changes.iter().enumerate() {
             ordering.map.insert(change.path.clone(), i);
         }
 
         ordering
-    }
-
-    pub fn sort_changes_by_status(&self, changes: &mut [Change]) {
-        changes.sort_by(|change_1, change_2| {
-            self.status_priorities
-                .compare_statuses(&change_1.status, &change_2.status)
-        });
     }
 
     pub fn sort_changes(&mut self, changes: &mut [Change]) {
@@ -136,9 +127,11 @@ impl StatusPriorityMap {
         StatusPriorityMap { map }
     }
 
-    fn compare_statuses(&self, status_1: &Status, status_2: &Status) -> Ordering {
-        let priority_1 = self.map[status_1];
-        let priority_2 = self.map[status_2];
-        priority_1.cmp(&priority_2)
+    fn sort_changes_by_status(&self, changes: &mut [Change]) {
+        changes.sort_by(|change_1, change_2| {
+            let priority_1 = self.map[&change_1.status];
+            let priority_2 = self.map[&change_2.status];
+            priority_1.cmp(&priority_2)
+        });
     }
 }
