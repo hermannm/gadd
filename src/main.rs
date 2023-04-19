@@ -9,6 +9,7 @@ use tui::{self, backend::CrosstermBackend, widgets::Paragraph};
 use crate::change_list::ChangeList;
 
 mod change_list;
+mod change_ordering;
 mod input;
 mod statuses;
 mod utils;

@@ -6,7 +6,8 @@ use tui::{
 };
 
 use crate::{
-    statuses::{get_status_symbol, StatusPriorityMap, INDEX_STATUSES, WORKTREE_STATUSES},
+    change_ordering::ChangeOrdering,
+    statuses::{get_status_symbol, INDEX_STATUSES, WORKTREE_STATUSES},
     utils::{bytes_to_path, new_index_entry},
 };
 
@@ -15,12 +16,12 @@ pub(super) struct ChangeList<'repo> {
     index: Index,
     changes: Vec<Change>,
     index_of_selected_change: usize,
-    status_priority_map: StatusPriorityMap,
+    change_ordering: ChangeOrdering,
 }
 
 pub(super) struct Change {
-    path: Vec<u8>,
-    status: Status,
+    pub path: Vec<u8>,
+    pub status: Status,
 }
 
 impl<'repo> ChangeList<'repo> {
@@ -29,49 +30,51 @@ impl<'repo> ChangeList<'repo> {
             .index()
             .context("Failed to get Git index for repository")?;
 
-        let status_priority_map = StatusPriorityMap::new();
+        let mut changes = ChangeList::get_changes(repository)?;
 
-        let mut change_list = ChangeList {
-            repository,
-            index,
-            changes: Vec::<Change>::new(),
-            index_of_selected_change: 0,
-            status_priority_map,
-        };
+        let change_ordering = ChangeOrdering::sort_changes_and_save_ordering(&mut changes);
 
-        change_list.refresh_changes()?;
+        let mut index_of_selected_change = 0;
 
-        for (i, change) in change_list.changes.iter().enumerate() {
+        for (i, change) in changes.iter().enumerate() {
             if change.status == Status::WT_NEW && i > 0 {
-                change_list.index_of_selected_change = i - 1;
-            } else if i == change_list.changes.len() - 1 {
-                change_list.index_of_selected_change = i;
+                index_of_selected_change = i - 1;
+            } else if i == changes.len() - 1 {
+                index_of_selected_change = i;
             }
         }
 
-        Ok(change_list)
+        Ok(ChangeList {
+            repository,
+            index,
+            changes,
+            index_of_selected_change,
+            change_ordering,
+        })
     }
 
-    pub fn refresh_changes(&mut self) -> Result<()> {
-        let statuses = self.repository.statuses(None)?;
+    fn get_changes(repository: &Repository) -> Result<Vec<Change>> {
+        let statuses = repository.statuses(None)?;
 
-        self.changes = Vec::<Change>::with_capacity(statuses.len());
+        let mut changes = Vec::<Change>::with_capacity(statuses.len());
 
         for status_entry in statuses.iter() {
             let status = status_entry.status();
 
             if !status.is_ignored() {
-                self.changes.push(Change {
+                changes.push(Change {
                     path: status_entry.path_bytes().to_owned(),
                     status,
                 });
             }
         }
 
-        self.changes.sort_by(|change_1, change_2| {
-            self.status_priority_map
-                .compare_statuses(&change_1.status, &change_2.status)
-        });
+        Ok(changes)
+    }
+
+    pub fn refresh_changes(&mut self) -> Result<()> {
+        self.changes = ChangeList::get_changes(self.repository)?;
+        self.change_ordering.sort_changes(&mut self.changes);
 
         let changes_length = self.changes.len();
         if self.index_of_selected_change >= changes_length {
