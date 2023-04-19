@@ -1,11 +1,9 @@
-use std::io::{StdoutLock, Write};
-
 use anyhow::{Context, Result};
-use crossterm::{
-    style::{Color, ResetColor, SetBackgroundColor, SetForegroundColor},
-    QueueableCommand,
-};
 use git2::{Index, Repository, Status};
+use tui::{
+    style::{Color, Style},
+    text::{Span, Spans},
+};
 
 use crate::{
     statuses::{get_status_symbol, StatusPriorityMap, INDEX_STATUSES, WORKTREE_STATUSES},
@@ -83,51 +81,50 @@ impl<'repo> ChangeList<'repo> {
         Ok(())
     }
 
-    pub fn render(&self, stdout: &mut StdoutLock) -> Result<()> {
+    pub fn render(&self) -> Vec<Spans> {
+        let red_text = Style::default().fg(Color::Red);
+        let green_text = Style::default().fg(Color::Green);
+        let selected_text = Style::default().fg(Color::Black).bg(Color::White);
+
+        let mut lines = Vec::<Spans>::with_capacity(self.changes.len());
+
         for (i, change) in self.changes.iter().enumerate() {
+            let mut line = Vec::<Span>::new();
+
             let status = change.status;
 
             if status == Status::WT_NEW {
-                stdout.queue(SetForegroundColor(Color::Red))?;
-                stdout.write_all("??".as_bytes())?;
-                stdout.queue(ResetColor)?;
+                line.push(Span::styled("??", red_text));
             } else {
                 if let Some(index_status_symbol) = get_status_symbol(status, INDEX_STATUSES) {
-                    stdout.queue(SetForegroundColor(Color::Green))?;
-                    stdout.write_all(index_status_symbol.as_bytes())?;
-                    stdout.queue(ResetColor)?;
+                    line.push(Span::styled(index_status_symbol, green_text));
                 } else {
-                    stdout.write_all(" ".as_bytes())?;
+                    line.push(Span::raw(" "));
                 }
 
                 if let Some(worktree_status_symbol) = get_status_symbol(status, WORKTREE_STATUSES) {
-                    stdout.queue(SetForegroundColor(Color::Red))?;
-                    stdout.write_all(worktree_status_symbol.as_bytes())?;
-                    stdout.queue(ResetColor)?;
+                    line.push(Span::styled(worktree_status_symbol, red_text));
                 } else {
-                    stdout.write_all(" ".as_bytes())?;
+                    line.push(Span::raw(" "));
                 }
             }
 
-            stdout.write_all(" ".as_bytes())?;
+            line.push(Span::raw(" "));
 
-            let is_selected_change = i == self.index_of_selected_change;
-            if is_selected_change {
-                stdout
-                    .queue(SetBackgroundColor(Color::White))?
-                    .queue(SetForegroundColor(Color::Black))?;
-            }
+            line.push({
+                let path_string = String::from_utf8_lossy(&change.path);
 
-            stdout.write_all(&change.path)?;
+                if i == self.index_of_selected_change {
+                    Span::styled(path_string, selected_text)
+                } else {
+                    Span::raw(path_string)
+                }
+            });
 
-            if is_selected_change {
-                stdout.queue(ResetColor)?;
-            }
-
-            stdout.write_all("\r\n".as_bytes())?;
+            lines.push(Spans::from(line));
         }
 
-        Ok(())
+        lines
     }
 
     pub fn stage_selected_change(&mut self) -> Result<()> {

@@ -1,16 +1,14 @@
-use std::io::{StdoutLock, Write};
-
 use anyhow::Result;
-use crossterm::{
-    event::{self, Event, KeyCode},
-    style::{Color, ResetColor, SetForegroundColor},
-    QueueableCommand,
+use crossterm::event::{self, Event, KeyCode};
+use tui::{
+    style::{Color, Style},
+    text::{Span, Spans},
 };
 
-use crate::{change_list::ChangeList, render};
+use crate::{change_list::ChangeList, render, Terminal};
 
 pub(super) fn user_input_event_loop(
-    stdout: &mut StdoutLock,
+    terminal: &mut Terminal,
     change_list: &mut ChangeList,
 ) -> Result<()> {
     loop {
@@ -23,19 +21,19 @@ pub(super) fn user_input_event_loop(
                 }
                 KeyCode::Char(' ') => {
                     change_list.stage_selected_change()?;
-                    render(stdout, change_list)?;
+                    render(terminal, change_list)?;
                 }
                 KeyCode::Char('r') => {
                     change_list.unstage_selected_change()?;
-                    render(stdout, change_list)?;
+                    render(terminal, change_list)?;
                 }
                 KeyCode::Up => {
                     change_list.decrement_selected_change();
-                    render(stdout, change_list)?;
+                    render(terminal, change_list)?;
                 }
                 KeyCode::Down => {
                     change_list.increment_selected_change();
-                    render(stdout, change_list)?;
+                    render(terminal, change_list)?;
                 }
                 _ => continue,
             }
@@ -53,18 +51,20 @@ const INPUT_CONTROLS: [[&str; 2]; 5] = [
     ["[down]", "move down"],
 ];
 
-pub(super) fn render_input_controls(stdout: &mut StdoutLock) -> Result<()> {
+pub(super) fn render_input_controls() -> Spans<'static> {
+    let blue_text = Style::default().fg(Color::Blue);
+
+    let mut line = Vec::<Span>::with_capacity(3 * INPUT_CONTROLS.len() + 1);
+
     for (i, [button, description]) in INPUT_CONTROLS.into_iter().enumerate() {
-        stdout.queue(SetForegroundColor(Color::Blue))?;
-        stdout.write_all(button.as_bytes())?;
-        stdout.queue(ResetColor)?;
-        stdout.write_all(" ".as_bytes())?;
-        stdout.write_all(description.as_bytes())?;
+        line.push(Span::styled(button, blue_text));
+        line.push(Span::raw(" "));
+        line.push(Span::raw(description));
 
         if i < INPUT_CONTROLS.len() - 1 {
-            stdout.write_all(" ".as_bytes())?;
+            line.push(Span::raw(" "));
         }
     }
 
-    Ok(())
+    Spans::from(line)
 }

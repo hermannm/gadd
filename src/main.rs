@@ -1,13 +1,10 @@
-use std::io::{stdout, StdoutLock, Write};
+use std::io::{stdout, Stdout, Write};
 
 use anyhow::{Context, Result};
-use crossterm::{
-    cursor,
-    terminal::{self, ClearType},
-    QueueableCommand,
-};
+use crossterm::{cursor, terminal, QueueableCommand};
 use git2::Repository;
 use input::{render_input_controls, user_input_event_loop};
+use tui::{self, backend::CrosstermBackend, widgets::Paragraph};
 
 use crate::change_list::ChangeList;
 
@@ -16,38 +13,42 @@ mod input;
 mod statuses;
 mod utils;
 
+type Terminal = tui::Terminal<CrosstermBackend<Stdout>>;
+
 fn main() -> Result<()> {
     let _cleanup = Cleanup;
 
-    let mut stdout = stdout().lock();
-
     terminal::enable_raw_mode()?;
-
+    let mut stdout = stdout();
     stdout
         .queue(terminal::EnterAlternateScreen)?
-        .queue(cursor::Hide)?;
+        .queue(cursor::Hide)?
+        .flush()?;
+
+    let terminal_backend = CrosstermBackend::new(stdout);
+    let mut terminal = tui::Terminal::new(terminal_backend)?;
 
     let repository = Repository::discover(".").context("Failed to open repository")?;
 
     let mut change_list = ChangeList::new(&repository)?;
 
-    render(&mut stdout, &change_list)?;
+    render(&mut terminal, &change_list)?;
 
-    user_input_event_loop(&mut stdout, &mut change_list)?;
+    user_input_event_loop(&mut terminal, &mut change_list)?;
 
     Ok(())
 }
 
-pub(self) fn render(stdout: &mut StdoutLock, change_list: &ChangeList) -> Result<()> {
-    stdout.queue(terminal::Clear(ClearType::All))?;
+pub(self) fn render(terminal: &mut Terminal, change_list: &ChangeList) -> Result<()> {
+    terminal.draw(|frame| {
+        let mut lines = change_list.render();
+        let input_control_line = render_input_controls();
+        lines.push(input_control_line);
 
-    change_list.render(stdout)?;
+        let paragraph = Paragraph::new(lines);
 
-    render_input_controls(stdout)?;
-
-    stdout.write_all("\r".as_bytes())?;
-
-    stdout.flush()?;
+        frame.render_widget(paragraph, frame.size());
+    })?;
 
     Ok(())
 }
