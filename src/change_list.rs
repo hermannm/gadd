@@ -1,6 +1,6 @@
 use anyhow::{Context, Result};
 use git2::{Index, Repository, Status};
-use tui::{
+use ratatui::{
     layout::Corner,
     style::{Color, Style},
     text::{Span, Spans},
@@ -14,11 +14,11 @@ use crate::{
 };
 
 pub(super) struct ChangeList<'repo> {
-    repository: &'repo Repository,
-    index: Index,
-    changes: Vec<Change>,
+    pub changes: Vec<Change>,
     index_of_selected_change: usize,
     change_ordering: ChangeOrdering,
+    repository: &'repo Repository,
+    index: Index,
 }
 
 pub(super) struct Change {
@@ -39,18 +39,18 @@ impl<'repo> ChangeList<'repo> {
         let mut index_of_selected_change = 0;
 
         for (i, change) in changes.iter().enumerate() {
-            if change.status != Status::WT_NEW {
+            if !INDEX_STATUSES.contains(&change.status) {
                 index_of_selected_change = i;
                 break;
             }
         }
 
         Ok(ChangeList {
-            repository,
-            index,
             changes,
             index_of_selected_change,
             change_ordering,
+            repository,
+            index,
         })
     }
 
@@ -85,14 +85,14 @@ impl<'repo> ChangeList<'repo> {
         Ok(())
     }
 
-    pub fn render(&self) -> List {
+    pub fn render(&self, highlight_selected_change: bool) -> List {
         let red_text = Style::default().fg(Color::Red);
         let green_text = Style::default().fg(Color::Green);
         let selected_text = Style::default().fg(Color::Black).bg(Color::White);
 
         let mut items = Vec::<ListItem>::with_capacity(self.changes.len());
 
-        for (i, change) in self.changes.iter().enumerate() {
+        for (i, change) in self.changes.iter().enumerate().rev() {
             let mut line = Vec::<Span>::new();
 
             let status = change.status;
@@ -118,7 +118,7 @@ impl<'repo> ChangeList<'repo> {
             line.push({
                 let path_string = String::from_utf8_lossy(&change.path);
 
-                if i == self.index_of_selected_change {
+                if highlight_selected_change && i == self.index_of_selected_change {
                     Span::styled(path_string, selected_text)
                 } else {
                     Span::raw(path_string)
@@ -134,7 +134,13 @@ impl<'repo> ChangeList<'repo> {
     pub fn stage_selected_change(&mut self) -> Result<()> {
         let change = &self.changes[self.index_of_selected_change];
         let path = bytes_to_path(&change.path);
-        self.index.add_path(path)?;
+
+        if change.status.is_wt_deleted() {
+            self.index.remove_path(path)?;
+        } else {
+            self.index.add_path(path)?;
+        }
+
         self.index.write()?;
         self.refresh_changes()?;
         Ok(())
