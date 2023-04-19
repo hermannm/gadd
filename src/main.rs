@@ -4,10 +4,11 @@ use anyhow::{Context, Result};
 use crossterm::{cursor, terminal, QueueableCommand};
 use git2::Repository;
 use input::{render_input_controls, user_input_event_loop};
-use tui::{
+use ratatui::{
     self,
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
+    TerminalOptions, Viewport,
 };
 
 use crate::change_list::ChangeList;
@@ -18,10 +19,21 @@ mod input;
 mod statuses;
 mod utils;
 
-type Terminal = tui::Terminal<CrosstermBackend<Stdout>>;
+type Terminal = ratatui::Terminal<CrosstermBackend<Stdout>>;
 
 fn main() -> Result<()> {
-    let _cleanup = Cleanup;
+    let repository = Repository::discover(".").context("Failed to open repository")?;
+    let mut change_list = ChangeList::new(&repository)?;
+
+    run_fullscreen_application(&mut change_list)?;
+
+    render_changes_on_exit(&mut change_list)?;
+
+    Ok(())
+}
+
+fn run_fullscreen_application(change_list: &mut ChangeList) -> Result<()> {
+    let cleanup = Cleanup;
 
     terminal::enable_raw_mode()?;
     let mut stdout = stdout();
@@ -30,16 +42,13 @@ fn main() -> Result<()> {
         .queue(cursor::Hide)?
         .flush()?;
 
-    let terminal_backend = CrosstermBackend::new(stdout);
-    let mut terminal = tui::Terminal::new(terminal_backend)?;
+    let mut terminal = ratatui::Terminal::new(CrosstermBackend::new(stdout))?;
 
-    let repository = Repository::discover(".").context("Failed to open repository")?;
+    render(&mut terminal, change_list)?;
 
-    let mut change_list = ChangeList::new(&repository)?;
+    user_input_event_loop(&mut terminal, change_list)?;
 
-    render(&mut terminal, &change_list)?;
-
-    user_input_event_loop(&mut terminal, &mut change_list)?;
+    drop(cleanup);
 
     Ok(())
 }
@@ -51,10 +60,31 @@ pub(self) fn render(terminal: &mut Terminal, change_list: &ChangeList) -> Result
             .constraints([Constraint::Min(1), Constraint::Length(1)])
             .split(frame.size());
 
-        frame.render_widget(change_list.render(), chunks[0]);
+        frame.render_widget(change_list.render(true), chunks[0]);
 
         frame.render_widget(render_input_controls(), chunks[1]);
     })?;
+
+    Ok(())
+}
+
+fn render_changes_on_exit(change_list: &mut ChangeList) -> Result<()> {
+    change_list.refresh_changes()?;
+
+    let change_list_length = u16::try_from(change_list.changes.len()).unwrap_or(u16::MAX);
+
+    let mut terminal = ratatui::Terminal::with_options(
+        CrosstermBackend::new(stdout()),
+        TerminalOptions {
+            viewport: Viewport::Inline(change_list_length),
+        },
+    )?;
+
+    terminal.draw(|frame| {
+        frame.render_widget(change_list.render(false), frame.size());
+    })?;
+
+    terminal.backend_mut().write_all("\n".as_bytes())?;
 
     Ok(())
 }
