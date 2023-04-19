@@ -1,11 +1,10 @@
 use std::{cmp::Ordering, collections::HashMap};
 
-use git2::Status;
+use crate::change_list::Change;
 
-use crate::{
-    change_list::Change,
-    statuses::{INDEX_STATUSES, WORKTREE_STATUSES},
-};
+use self::status_priorities::StatusPriorityMap;
+
+mod status_priorities;
 
 pub(super) struct ChangeOrdering {
     map: HashMap<Vec<u8>, usize>,
@@ -13,7 +12,11 @@ pub(super) struct ChangeOrdering {
 
 impl ChangeOrdering {
     pub fn sort_changes_and_save_ordering(changes: &mut Vec<Change>) -> ChangeOrdering {
-        StatusPriorityMap::new().sort_changes_by_status(changes);
+        let status_priorities = StatusPriorityMap::new();
+
+        changes.sort_by(|change_1, change_2| {
+            status_priorities.compare_statuses(&change_1.status, &change_2.status)
+        });
 
         let mut ordering = ChangeOrdering {
             map: HashMap::with_capacity(changes.len()),
@@ -75,63 +78,5 @@ impl ChangeOrdering {
         let name_1 = String::from_utf8_lossy(path_1);
         let name_2 = String::from_utf8_lossy(path_2);
         name_1.cmp(&name_2)
-    }
-}
-
-struct StatusPriorityMap {
-    map: HashMap<Status, usize>,
-}
-
-impl StatusPriorityMap {
-    fn new() -> StatusPriorityMap {
-        let status_length = INDEX_STATUSES.len();
-        let status_length_squared = status_length.pow(2);
-
-        let priority_combined_conflicted = 1;
-        let priority_single_conflicted = priority_combined_conflicted + status_length_squared;
-        let priority_combined = priority_single_conflicted + 2 * status_length;
-        let priority_single = priority_combined + status_length_squared;
-
-        let capacity = priority_single + 2 * status_length + 1;
-        let mut map = HashMap::<Status, usize>::with_capacity(capacity);
-
-        for i in 0..status_length {
-            let index_status = INDEX_STATUSES[i];
-            let worktree_status = WORKTREE_STATUSES[i];
-
-            map.insert(index_status, priority_single + i);
-            map.insert(worktree_status, priority_single + status_length + i);
-
-            map.insert(
-                index_status | Status::CONFLICTED,
-                priority_single_conflicted + i,
-            );
-            map.insert(
-                worktree_status | Status::CONFLICTED,
-                priority_single_conflicted + status_length + i,
-            );
-
-            for (j, index_status_2) in INDEX_STATUSES.into_iter().enumerate() {
-                let combined_status = index_status_2 | worktree_status;
-                let priority = i * status_length + j;
-                map.insert(combined_status, priority_combined + priority);
-                map.insert(
-                    combined_status | Status::CONFLICTED,
-                    priority_combined_conflicted + priority,
-                );
-            }
-        }
-
-        map.insert(Status::WT_NEW, 0);
-
-        StatusPriorityMap { map }
-    }
-
-    fn sort_changes_by_status(&self, changes: &mut [Change]) {
-        changes.sort_by(|change_1, change_2| {
-            let priority_1 = self.map[&change_1.status];
-            let priority_2 = self.map[&change_2.status];
-            priority_1.cmp(&priority_2)
-        });
     }
 }

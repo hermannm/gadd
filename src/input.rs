@@ -1,6 +1,6 @@
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode};
-use tui::{
+use ratatui::{
     style::{Color, Style},
     text::{Span, Spans},
     widgets::Block,
@@ -29,11 +29,11 @@ pub(super) fn user_input_event_loop(
                     render(terminal, change_list)?;
                 }
                 KeyCode::Up => {
-                    change_list.increment_selected_change();
+                    change_list.decrement_selected_change();
                     render(terminal, change_list)?;
                 }
                 KeyCode::Down => {
-                    change_list.decrement_selected_change();
+                    change_list.increment_selected_change();
                     render(terminal, change_list)?;
                 }
                 _ => continue,
