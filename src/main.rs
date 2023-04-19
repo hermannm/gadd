@@ -4,7 +4,11 @@ use anyhow::{Context, Result};
 use crossterm::{cursor, terminal, QueueableCommand};
 use git2::Repository;
 use input::{render_input_controls, user_input_event_loop};
-use tui::{self, backend::CrosstermBackend, widgets::Paragraph};
+use tui::{
+    self,
+    backend::CrosstermBackend,
+    layout::{Constraint, Direction, Layout},
+};
 
 use crate::change_list::ChangeList;
 
@@ -42,13 +46,14 @@ fn main() -> Result<()> {
 
 pub(self) fn render(terminal: &mut Terminal, change_list: &ChangeList) -> Result<()> {
     terminal.draw(|frame| {
-        let mut lines = change_list.render();
-        let input_control_line = render_input_controls();
-        lines.push(input_control_line);
+        let chunks = Layout::default()
+            .direction(Direction::Vertical)
+            .constraints([Constraint::Min(1), Constraint::Length(1)])
+            .split(frame.size());
 
-        let paragraph = Paragraph::new(lines);
+        frame.render_widget(change_list.render(), chunks[0]);
 
-        frame.render_widget(paragraph, frame.size());
+        frame.render_widget(render_input_controls(), chunks[1]);
     })?;
 
     Ok(())

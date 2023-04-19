@@ -3,6 +3,7 @@ use crossterm::event::{self, Event, KeyCode};
 use tui::{
     style::{Color, Style},
     text::{Span, Spans},
+    widgets::Block,
 };
 
 use crate::{change_list::ChangeList, render, Terminal};
@@ -28,11 +29,11 @@ pub(super) fn user_input_event_loop(
                     render(terminal, change_list)?;
                 }
                 KeyCode::Up => {
-                    change_list.decrement_selected_change();
+                    change_list.increment_selected_change();
                     render(terminal, change_list)?;
                 }
                 KeyCode::Down => {
-                    change_list.increment_selected_change();
+                    change_list.decrement_selected_change();
                     render(terminal, change_list)?;
                 }
                 _ => continue,
@@ -51,7 +52,7 @@ const INPUT_CONTROLS: [[&str; 2]; 5] = [
     ["[down]", "move down"],
 ];
 
-pub(super) fn render_input_controls() -> Spans<'static> {
+pub(super) fn render_input_controls() -> Block<'static> {
     let blue_text = Style::default().fg(Color::Blue);
 
     let mut line = Vec::<Span>::with_capacity(3 * INPUT_CONTROLS.len() + 1);
@@ -66,5 +67,5 @@ pub(super) fn render_input_controls() -> Spans<'static> {
         }
     }
 
-    Spans::from(line)
+    Block::default().title(Spans::from(line))
 }

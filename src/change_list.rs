@@ -1,8 +1,10 @@
 use anyhow::{Context, Result};
 use git2::{Index, Repository, Status};
 use tui::{
+    layout::Corner,
     style::{Color, Style},
     text::{Span, Spans},
+    widgets::{List, ListItem},
 };
 
 use crate::{
@@ -37,10 +39,9 @@ impl<'repo> ChangeList<'repo> {
         let mut index_of_selected_change = 0;
 
         for (i, change) in changes.iter().enumerate() {
-            if change.status == Status::WT_NEW && i > 0 {
-                index_of_selected_change = i - 1;
-            } else if i == changes.len() - 1 {
+            if change.status != Status::WT_NEW {
                 index_of_selected_change = i;
+                break;
             }
         }
 
@@ -84,12 +85,12 @@ impl<'repo> ChangeList<'repo> {
         Ok(())
     }
 
-    pub fn render(&self) -> Vec<Spans> {
+    pub fn render(&self) -> List {
         let red_text = Style::default().fg(Color::Red);
         let green_text = Style::default().fg(Color::Green);
         let selected_text = Style::default().fg(Color::Black).bg(Color::White);
 
-        let mut lines = Vec::<Spans>::with_capacity(self.changes.len());
+        let mut items = Vec::<ListItem>::with_capacity(self.changes.len());
 
         for (i, change) in self.changes.iter().enumerate() {
             let mut line = Vec::<Span>::new();
@@ -124,10 +125,10 @@ impl<'repo> ChangeList<'repo> {
                 }
             });
 
-            lines.push(Spans::from(line));
+            items.push(ListItem::new(Spans::from(line)));
         }
 
-        lines
+        List::new(items).start_corner(Corner::BottomLeft)
     }
 
     pub fn stage_selected_change(&mut self) -> Result<()> {
