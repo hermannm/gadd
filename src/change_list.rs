@@ -143,19 +143,23 @@ impl<'repo> ChangeList<'repo> {
         let change = &self.changes[self.index_of_selected_change];
         let path = bytes_to_path(&change.path);
 
-        let head = self.repository.head()?;
-        let tree = head.peel_to_tree()?;
-        let tree_entry = tree.get_path(path)?;
+        if change.status.is_index_new() {
+            self.index.remove_path(path)?;
+        } else {
+            let head = self.repository.head()?;
+            let tree = head.peel_to_tree()?;
+            let tree_entry = tree.get_path(path)?;
 
-        let index_entry = new_index_entry(
-            tree_entry.id(),
-            tree_entry.filemode() as u32,
-            change.path.clone(),
-        );
+            let index_entry = new_index_entry(
+                tree_entry.id(),
+                tree_entry.filemode() as u32,
+                change.path.clone(),
+            );
 
-        self.index.add(&index_entry)?;
+            self.index.add(&index_entry)?;
+        }
+
         self.index.write()?;
-
         self.refresh_changes()?;
 
         Ok(())
