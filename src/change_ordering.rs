@@ -94,42 +94,44 @@ struct StatusPriorityMap {
 impl StatusPriorityMap {
     fn new() -> StatusPriorityMap {
         let status_length = INDEX_STATUSES.len();
+        let status_length_squared = status_length.pow(2);
 
-        let capacity = status_length * 4 + (2 * status_length.pow(2)) + 1;
+        let priority_combined_conflicted = 1;
+        let priority_single_conflicted = priority_combined_conflicted + status_length_squared;
+        let priority_combined = priority_single_conflicted + 2 * status_length;
+        let priority_single = priority_combined + status_length_squared;
+
+        let capacity = priority_single + 2 * status_length + 1;
         let mut map = HashMap::<Status, usize>::with_capacity(capacity);
-
-        let not_added_priority = (2 + status_length) * status_length;
-        let conflicted_base_priority = not_added_priority + 1;
 
         for i in 0..status_length {
             let index_status = INDEX_STATUSES[i];
             let worktree_status = WORKTREE_STATUSES[i];
 
-            map.insert(index_status, i);
-            map.insert(worktree_status, i + status_length);
+            map.insert(index_status, priority_single + i);
+            map.insert(worktree_status, priority_single + status_length + i);
 
             map.insert(
                 index_status | Status::CONFLICTED,
-                conflicted_base_priority + i,
+                priority_single_conflicted + i,
             );
             map.insert(
                 worktree_status | Status::CONFLICTED,
-                conflicted_base_priority + i + status_length,
+                priority_single_conflicted + status_length + i,
             );
 
             for (j, index_status_2) in INDEX_STATUSES.into_iter().enumerate() {
                 let combined_status = index_status_2 | worktree_status;
-                let priority = (i + 2) * status_length + j;
-                map.insert(combined_status, priority);
-
+                let priority = i * status_length + j;
+                map.insert(combined_status, priority_combined + priority);
                 map.insert(
                     combined_status | Status::CONFLICTED,
-                    conflicted_base_priority + priority,
+                    priority_combined_conflicted + priority,
                 );
             }
         }
 
-        map.insert(Status::WT_NEW, not_added_priority);
+        map.insert(Status::WT_NEW, 0);
 
         StatusPriorityMap { map }
     }
