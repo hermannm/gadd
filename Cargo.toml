@@ -8,6 +8,7 @@ description = "Command-line utility for staging changes to Git (alternative to g
 keywords = ["git"]
 categories = ["command-line-utilities"]
 repository = "https://github.com/hermannm/gadd"
+exclude = ["cross-compile.sh"]
 
 [dependencies]
 anyhow = "1.0.70"
