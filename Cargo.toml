@@ -9,4 +9,5 @@ edition = "2021"
 anyhow = "1.0.70"
 crossterm = "0.26.1"
 git2 = "0.17.1"
+openssl-sys = { version = "*", features = ["vendored"] }
 ratatui = { git = "https://github.com/tui-rs-revival/ratatui", rev = "6af75d6" }
