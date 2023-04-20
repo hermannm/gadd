@@ -2,6 +2,10 @@
 name = "gadd"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+description = "Command-line utility for staging changes to Git (alternative to git-add's interactive mode)."
+categories = ["command-line-utilities"]
+repository = "https://github.com/hermannm/gadd"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
