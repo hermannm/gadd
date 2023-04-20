@@ -8,6 +8,7 @@ use ratatui::{
     self,
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
+    TerminalOptions, Viewport,
 };
 
 use crate::change_list::ChangeList;
@@ -25,6 +26,7 @@ fn main() -> Result<()> {
     let mut change_list = ChangeList::new(&repository)?;
 
     run_fullscreen_application(&mut change_list)?;
+    render_changes_on_exit(&mut change_list)?;
 
     Ok(())
 }
@@ -61,6 +63,27 @@ pub(self) fn render(terminal: &mut Terminal, change_list: &ChangeList) -> Result
 
         frame.render_widget(render_input_controls(), chunks[1]);
     })?;
+
+    Ok(())
+}
+
+fn render_changes_on_exit(change_list: &mut ChangeList) -> Result<()> {
+    change_list.refresh_changes()?;
+
+    let change_list_length = u16::try_from(change_list.changes.len()).unwrap_or(u16::MAX);
+
+    let mut terminal = ratatui::Terminal::with_options(
+        CrosstermBackend::new(stdout()),
+        TerminalOptions {
+            viewport: Viewport::Inline(change_list_length),
+        },
+    )?;
+
+    terminal.draw(|frame| {
+        frame.render_widget(change_list.render(false), frame.size());
+    })?;
+
+    terminal.backend_mut().write_all("\n".as_bytes())?;
 
     Ok(())
 }
