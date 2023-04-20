@@ -9,11 +9,9 @@ keywords = ["git"]
 categories = ["command-line-utilities"]
 repository = "https://github.com/hermannm/gadd"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 anyhow = "1.0.70"
 crossterm = "0.26.1"
 git2 = "0.17.1"
 openssl-sys = { version = "*", features = ["vendored"] }
-ratatui = { git = "https://github.com/tui-rs-revival/ratatui", rev = "6af75d6" }
+ratatui = "0.20.1"

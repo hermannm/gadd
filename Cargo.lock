@@ -263,7 +263,8 @@ checksum = "6ac9a59f73473f1b8d852421e59e64809f025994837ef743615c6d0c5b305160"
 [[package]]
 name = "ratatui"
 version = "0.20.1"
-source = "git+https://github.com/tui-rs-revival/ratatui?rev=6af75d6#6af75d6d40b39b8769a311bb92e788f8d8e3618c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dcc0d032bccba900ee32151ec0265667535c230169f5a011154cdcd984e16829"
 dependencies = [
  "bitflags",
  "cassowary",
