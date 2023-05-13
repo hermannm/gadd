@@ -63,7 +63,7 @@ impl ChangeOrdering {
         });
 
         if !new_paths.is_empty() {
-            new_paths.sort_by(ChangeOrdering::compare_paths);
+            new_paths.sort_by(|path_1, path_2| ChangeOrdering::compare_paths(path_1, path_2));
 
             let ordering_length = self.map.len();
 
@@ -73,8 +73,7 @@ impl ChangeOrdering {
         }
     }
 
-    #[allow(clippy::ptr_arg)]
-    fn compare_paths(path_1: &Vec<u8>, path_2: &Vec<u8>) -> Ordering {
+    fn compare_paths(path_1: &[u8], path_2: &[u8]) -> Ordering {
         let name_1 = String::from_utf8_lossy(path_1);
         let name_2 = String::from_utf8_lossy(path_2);
         name_1.cmp(&name_2)
