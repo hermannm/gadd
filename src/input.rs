@@ -1,5 +1,5 @@
 use anyhow::Result;
-use crossterm::event::{self, Event, KeyCode};
+use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 use ratatui::{
     style::{Color, Style},
     text::{Span, Spans},
@@ -19,27 +19,31 @@ pub(super) fn user_input_event_loop(
         let event = event::read()?;
 
         if let Event::Key(event) = event {
-            match event.code {
-                KeyCode::Enter => {
+            use KeyCode::*;
+
+            match (event.code, event.modifiers) {
+                (Enter, _) | (Esc, _) | (Char('c'), KeyModifiers::CONTROL) => {
                     break;
                 }
-                KeyCode::Char(' ') => {
+                (Char(' '), _) => {
                     change_list.stage_selected_change()?;
                     render(terminal, change_list)?;
                 }
-                KeyCode::Char('r') => {
+                (Char('r'), _) => {
                     change_list.unstage_selected_change()?;
                     render(terminal, change_list)?;
                 }
-                KeyCode::Up => {
+                (Up, _) => {
                     change_list.decrement_selected_change();
                     render(terminal, change_list)?;
                 }
-                KeyCode::Down => {
+                (Down, _) => {
                     change_list.increment_selected_change();
                     render(terminal, change_list)?;
                 }
-                _ => continue,
+                _ => {
+                    continue;
+                }
             }
         }
     }
