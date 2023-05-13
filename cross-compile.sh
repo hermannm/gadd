@@ -1,3 +1,6 @@
+# Fails script on first error
+set -e;
+
 echo "Compiling for Linux x86-64...";
 cross build --release --target=x86_64-unknown-linux-gnu;
 cp target/x86_64-unknown-linux-gnu/release/gadd target/gadd-linux-x86-64;
@@ -12,14 +15,14 @@ cp target/aarch64-unknown-linux-gnu/release/gadd target/gadd-linux-arm;
 
 echo "Compiling for Windows x86-64...";
 cross build --release --target=x86_64-pc-windows-gnu;
-cp target/x86_64-pc-windows-gnu/release/gadd target/gadd-windows-x86-64;
+cp target/x86_64-pc-windows-gnu/release/gadd.exe target/gadd-windows-x86-64.exe;
 
 echo "Compiling for Windows x86-32...";
 cross build --release --target=i686-pc-windows-gnu;
-cp target/i686-pc-windows-gnu/release/gadd target/gadd-windows-x86-32;
+cp target/i686-pc-windows-gnu/release/gadd.exe target/gadd-windows-x86-32.exe;
 
 echo "Compiling for MacOS x86-64...";
-docker run --rm \
+docker run -t --rm \
     --volume "${PWD}":/root/src \
     --workdir /root/src \
     joseluisq/rust-linux-darwin-builder:1.68.2 \
@@ -27,7 +30,7 @@ docker run --rm \
 cp target/x86_64-apple-darwin/release/gadd target/gadd-macos-x86-64;
 
 echo "Compiling for MacOS ARM...";
-docker run --rm \
+docker run -t --rm \
     --volume "${PWD}":/root/src \
     --workdir /root/src \
     joseluisq/rust-linux-darwin-builder:1.68.2 \
