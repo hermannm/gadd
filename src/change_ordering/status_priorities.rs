@@ -16,8 +16,7 @@ impl StatusPriorityMap {
         let conflicted_base_priority = worktree_base_priority + status_length;
         let not_added_priority = conflicted_base_priority * 2;
 
-        let capacity = not_added_priority + 1;
-        let mut map = HashMap::<Status, usize>::with_capacity(capacity);
+        let mut map = HashMap::<Status, usize>::with_capacity(not_added_priority + 1);
 
         for i in 0..status_length {
             let index_status = INDEX_STATUSES[i];
