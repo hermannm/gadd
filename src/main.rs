@@ -25,6 +25,11 @@ fn main() -> Result<()> {
     let repository = Repository::discover(".").context("Failed to open repository")?;
     let mut change_list = ChangeList::new(&repository)?;
 
+    if change_list.changes.is_empty() {
+        println!("No changes!");
+        return Ok(());
+    }
+
     run_fullscreen_application(&mut change_list)?;
     render_changes_on_exit(&mut change_list)?;
 
