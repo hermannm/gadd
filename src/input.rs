@@ -12,6 +12,9 @@ pub(super) fn user_input_event_loop(
     terminal: &mut Terminal,
     change_list: &mut ChangeList,
 ) -> Result<()> {
+    #[cfg(windows)]
+    handle_initial_enter_press_windows()?;
+
     loop {
         let event = event::read()?;
 
@@ -42,6 +45,25 @@ pub(super) fn user_input_event_loop(
     }
 
     Ok(())
+}
+
+#[cfg(windows)]
+fn handle_initial_enter_press_windows() -> Result<()> {
+    use crossterm::event::KeyEvent;
+
+    loop {
+        let event = event::read()?;
+
+        if matches!(
+            event,
+            Event::Key(KeyEvent {
+                code: KeyCode::Enter,
+                ..
+            })
+        ) {
+            return Ok(());
+        }
+    }
 }
 
 const INPUT_CONTROLS: [[&str; 2]; 5] = [
