@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::HashMap};
+use std::{cmp::Ordering, collections::HashMap, fmt::Debug};
 
 use git2::Status;
 
@@ -46,5 +46,22 @@ impl StatusPriorityMap {
         let priority_1 = self.map[status_1];
         let priority_2 = self.map[status_2];
         priority_1.cmp(&priority_2)
+    }
+}
+
+impl Debug for StatusPriorityMap {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut status_priorities: Vec<(&Status, &usize)> = self.map.iter().collect();
+        status_priorities.sort_by(|(_, priority_1), (_, priority_2)| priority_1.cmp(priority_2));
+
+        formatter.write_str("StatusPriorityMap {\n")?;
+
+        for (status, priority) in status_priorities {
+            formatter.write_fmt(format_args!("    {status:?}: {priority:?},\n"))?;
+        }
+
+        formatter.write_str("}")?;
+
+        Ok(())
     }
 }
