@@ -7,11 +7,13 @@ use self::status_priorities::StatusPriorityMap;
 mod status_priorities;
 
 pub(super) struct ChangeOrdering {
-    map: HashMap<Vec<u8>, usize>,
+    map: HashMap<Vec<u8>, i64>,
 }
 
 impl ChangeOrdering {
     pub fn sort_changes_and_save_ordering(changes: &mut Vec<Change>) -> ChangeOrdering {
+        changes.reverse();
+
         let status_priorities = StatusPriorityMap::new();
 
         changes.sort_by(|change_1, change_2| {
@@ -22,14 +24,14 @@ impl ChangeOrdering {
             map: HashMap::with_capacity(changes.len()),
         };
 
-        for (i, change) in changes.iter().enumerate() {
+        for (change, i) in changes.iter().zip(0i64..) {
             ordering.map.insert(change.path.clone(), i);
         }
 
         ordering
     }
 
-    pub fn sort_changes(&mut self, changes: &mut [Change]) {
+    pub fn sort_changes(&mut self, changes: &mut [Change]) -> usize {
         let mut new_paths = Vec::<Vec<u8>>::new();
 
         changes.sort_by(|change_1, change_2| {
@@ -42,13 +44,13 @@ impl ChangeOrdering {
                     if !new_paths.contains(&change_2.path) {
                         new_paths.push(change_2.path.clone());
                     }
-                    Ordering::Less
+                    Ordering::Greater
                 }
                 (None, Some(_)) => {
                     if !new_paths.contains(&change_1.path) {
                         new_paths.push(change_1.path.clone());
                     }
-                    Ordering::Greater
+                    Ordering::Less
                 }
                 (None, None) => {
                     if !new_paths.contains(&change_1.path) {
@@ -62,15 +64,20 @@ impl ChangeOrdering {
             }
         });
 
+        let new_paths_length = new_paths.len();
+
         if !new_paths.is_empty() {
             new_paths.sort_by(|path_1, path_2| ChangeOrdering::compare_paths(path_1, path_2));
 
-            let ordering_length = self.map.len();
+            let mut priority = self.map.values().min().cloned().unwrap_or(-1);
 
-            for (i, new_path) in new_paths.into_iter().enumerate() {
-                self.map.insert(new_path, ordering_length + i);
+            for new_path in new_paths {
+                self.map.insert(new_path, priority);
+                priority -= 1;
             }
         }
+
+        new_paths_length
     }
 
     fn compare_paths(path_1: &[u8], path_2: &[u8]) -> Ordering {
