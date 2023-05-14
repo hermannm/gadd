@@ -3,7 +3,7 @@ use std::io::{stdout, Stdout, Write};
 use anyhow::{Context, Result};
 use crossterm::{cursor, terminal, QueueableCommand};
 use git2::Repository;
-use input::{render_input_controls, user_input_event_loop};
+use input::{event_loop::user_input_event_loop, widget::InputControlsWidget};
 use ratatui::{
     self,
     backend::CrosstermBackend,
@@ -49,16 +49,22 @@ fn run_fullscreen_application(change_list: &mut ChangeList) -> Result<()> {
 
     let mut terminal = ratatui::Terminal::new(CrosstermBackend::new(stdout))?;
 
-    render(&mut terminal, change_list)?;
+    let input_widget = InputControlsWidget::new();
 
-    user_input_event_loop(&mut terminal, change_list)?;
+    render(&mut terminal, change_list, &input_widget)?;
+
+    user_input_event_loop(&mut terminal, change_list, &input_widget)?;
 
     drop(cleanup);
 
     Ok(())
 }
 
-pub(self) fn render(terminal: &mut Terminal, change_list: &mut ChangeList) -> Result<()> {
+pub(self) fn render(
+    terminal: &mut Terminal,
+    change_list: &mut ChangeList,
+    input_widget: &InputControlsWidget,
+) -> Result<()> {
     terminal.draw(|frame| {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
@@ -66,8 +72,7 @@ pub(self) fn render(terminal: &mut Terminal, change_list: &mut ChangeList) -> Re
             .split(frame.size());
 
         change_list.render(frame, chunks[0], true);
-
-        frame.render_widget(render_input_controls(), chunks[1]);
+        input_widget.render(frame, chunks[1]);
     })?;
 
     Ok(())
