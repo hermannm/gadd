@@ -20,6 +20,7 @@ mod statuses;
 mod utils;
 
 type Terminal = ratatui::Terminal<CrosstermBackend<Stdout>>;
+type Frame<'a> = ratatui::Frame<'a, CrosstermBackend<Stdout>>;
 
 fn main() -> Result<()> {
     let repository = Repository::discover(".").context("Failed to open repository")?;
@@ -57,14 +58,14 @@ fn run_fullscreen_application(change_list: &mut ChangeList) -> Result<()> {
     Ok(())
 }
 
-pub(self) fn render(terminal: &mut Terminal, change_list: &ChangeList) -> Result<()> {
+pub(self) fn render(terminal: &mut Terminal, change_list: &mut ChangeList) -> Result<()> {
     terminal.draw(|frame| {
         let chunks = Layout::default()
             .direction(Direction::Vertical)
             .constraints([Constraint::Min(1), Constraint::Length(1)])
             .split(frame.size());
 
-        frame.render_widget(change_list.render(true), chunks[0]);
+        change_list.render(frame, chunks[0], true);
 
         frame.render_widget(render_input_controls(), chunks[1]);
     })?;
@@ -85,7 +86,7 @@ fn render_changes_on_exit(change_list: &mut ChangeList) -> Result<()> {
     )?;
 
     terminal.draw(|frame| {
-        frame.render_widget(change_list.render(false), frame.size());
+        change_list.render(frame, frame.size(), false);
     })?;
 
     terminal.backend_mut().write_all("\n".as_bytes())?;

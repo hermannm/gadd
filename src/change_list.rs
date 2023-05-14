@@ -1,21 +1,22 @@
 use anyhow::{Context, Result};
 use git2::{Index, Repository, Status};
 use ratatui::{
-    layout::Corner,
+    layout::{Corner, Rect},
     style::{Color, Style},
     text::{Span, Spans},
-    widgets::{List, ListItem},
+    widgets::{List, ListItem, ListState},
 };
 
 use crate::{
     change_ordering::ChangeOrdering,
     statuses::{get_status_symbol, INDEX_STATUSES, WORKTREE_STATUSES},
     utils::{bytes_to_path, new_index_entry},
+    Frame,
 };
 
 pub(super) struct ChangeList<'repo> {
     pub changes: Vec<Change>,
-    index_of_selected_change: usize,
+    selected_change: ListState,
     change_ordering: ChangeOrdering,
     repository: &'repo Repository,
     index: Index,
@@ -36,22 +37,17 @@ impl<'repo> ChangeList<'repo> {
 
         let change_ordering = ChangeOrdering::sort_changes_and_save_ordering(&mut changes);
 
-        let mut index_of_selected_change = 0;
-
-        for (i, change) in changes.iter().enumerate() {
-            if !INDEX_STATUSES.contains(&change.status) {
-                index_of_selected_change = i;
-                break;
-            }
-        }
-
-        Ok(ChangeList {
+        let mut change_list = ChangeList {
             changes,
-            index_of_selected_change,
+            selected_change: ListState::default(),
             change_ordering,
             repository,
             index,
-        })
+        };
+
+        change_list.select_default_change();
+
+        Ok(change_list)
     }
 
     fn get_changes(repository: &Repository) -> Result<Vec<Change>> {
@@ -75,24 +71,31 @@ impl<'repo> ChangeList<'repo> {
 
     pub fn refresh_changes(&mut self) -> Result<()> {
         self.changes = ChangeList::get_changes(self.repository)?;
-        self.change_ordering.sort_changes(&mut self.changes);
+        let new_changes = self.change_ordering.sort_changes(&mut self.changes);
 
         let changes_length = self.changes.len();
-        if self.index_of_selected_change >= changes_length {
-            self.index_of_selected_change = changes_length - 1;
+
+        if let Some(mut index_of_selected_change) = self.get_selected_change() {
+            index_of_selected_change += new_changes;
+
+            if index_of_selected_change >= changes_length {
+                index_of_selected_change = changes_length - 1;
+            }
+
+            self.select_change(index_of_selected_change);
         }
 
         Ok(())
     }
 
-    pub fn render(&self, highlight_selected_change: bool) -> List {
+    pub fn render(&mut self, frame: &mut Frame, area: Rect, highlight_selected_change: bool) {
         let red_text = Style::default().fg(Color::Red);
         let green_text = Style::default().fg(Color::Green);
         let selected_text = Style::default().fg(Color::Black).bg(Color::White);
 
         let mut items = Vec::<ListItem>::with_capacity(self.changes.len());
 
-        for (i, change) in self.changes.iter().enumerate().rev() {
+        for (i, change) in self.changes.iter().enumerate() {
             let mut line = Vec::<Span>::new();
 
             let status = change.status;
@@ -118,7 +121,9 @@ impl<'repo> ChangeList<'repo> {
             line.push({
                 let path_string = String::from_utf8_lossy(&change.path);
 
-                if highlight_selected_change && i == self.index_of_selected_change {
+                if highlight_selected_change
+                    && matches!(self.get_selected_change(), Some(selected) if selected == i)
+                {
                     Span::styled(path_string, selected_text)
                 } else {
                     Span::raw(path_string)
@@ -128,11 +133,21 @@ impl<'repo> ChangeList<'repo> {
             items.push(ListItem::new(Spans::from(line)));
         }
 
-        List::new(items).start_corner(Corner::BottomLeft)
+        let list = List::new(items).start_corner(Corner::BottomLeft);
+
+        if highlight_selected_change {
+            frame.render_stateful_widget(list, area, &mut self.selected_change);
+        } else {
+            frame.render_widget(list, area);
+        }
     }
 
     pub fn stage_selected_change(&mut self) -> Result<()> {
-        let change = &self.changes[self.index_of_selected_change];
+        let Some(selected_change) = self.get_selected_change() else {
+            return Ok(());
+        };
+
+        let change = &self.changes[selected_change];
         let path = bytes_to_path(&change.path);
 
         if change.status.is_wt_deleted() {
@@ -147,7 +162,11 @@ impl<'repo> ChangeList<'repo> {
     }
 
     pub fn unstage_selected_change(&mut self) -> Result<()> {
-        let change = &self.changes[self.index_of_selected_change];
+        let Some(selected_change) = self.get_selected_change() else {
+            return Ok(());
+        };
+
+        let change = &self.changes[selected_change];
         let path = bytes_to_path(&change.path);
 
         if change.status.is_index_new() {
@@ -173,14 +192,53 @@ impl<'repo> ChangeList<'repo> {
     }
 
     pub fn increment_selected_change(&mut self) {
-        if self.index_of_selected_change < self.changes.len() - 1 {
-            self.index_of_selected_change += 1;
+        let Some(selected_change) = self.get_selected_change() else {
+            return;
+        };
+
+        if selected_change < self.changes.len() - 1 {
+            self.select_change(selected_change + 1);
         }
     }
 
     pub fn decrement_selected_change(&mut self) {
-        if self.index_of_selected_change > 0 {
-            self.index_of_selected_change -= 1;
+        let Some(index_of_selected_change) = self.get_selected_change() else {
+            return;
+        };
+
+        if index_of_selected_change > 0 {
+            self.select_change(index_of_selected_change - 1);
+        }
+    }
+
+    fn get_selected_change(&self) -> Option<usize> {
+        self.selected_change.selected()
+    }
+
+    fn select_change(&mut self, index_of_selected_change: usize) {
+        self.selected_change.select(Some(index_of_selected_change));
+    }
+
+    fn select_default_change(&mut self) {
+        let mut highest_index_per_worktree_status: Vec<(Status, Option<usize>)> = WORKTREE_STATUSES
+            .into_iter()
+            .map(|status| (status, None))
+            .collect();
+
+        for (i, change) in self.changes.iter().enumerate() {
+            for (status, index) in highest_index_per_worktree_status.iter_mut() {
+                if change.status == *status {
+                    *index = Some(i);
+                    break;
+                }
+            }
+        }
+
+        for (_, index) in highest_index_per_worktree_status.into_iter().rev() {
+            if let Some(index) = index {
+                self.select_change(index);
+                return;
+            }
         }
     }
 }

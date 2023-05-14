@@ -34,11 +34,11 @@ pub(super) fn user_input_event_loop(
                     render(terminal, change_list)?;
                 }
                 (Up, _) => {
-                    change_list.decrement_selected_change();
+                    change_list.increment_selected_change();
                     render(terminal, change_list)?;
                 }
                 (Down, _) => {
-                    change_list.increment_selected_change();
+                    change_list.decrement_selected_change();
                     render(terminal, change_list)?;
                 }
                 _ => {
