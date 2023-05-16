@@ -23,7 +23,7 @@ impl From<&Status> for StatusText {
         } else {
             for (i, status_to_check) in INDEX_STATUSES.into_iter().enumerate() {
                 if status.intersects(status_to_check) {
-                    status_text.red_text = Some(STATUS_SYMBOLS[i]);
+                    status_text.green_text = Some(STATUS_SYMBOLS[i]);
                 }
             }
 
