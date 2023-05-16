@@ -13,9 +13,9 @@ impl StatusPriorityMap {
         let status_length = INDEX_STATUSES.len();
 
         let worktree_base_priority = (1 + status_length) * status_length;
-        let conflicted_base_priority = worktree_base_priority + status_length;
+        let conflicted_priority = worktree_base_priority + status_length;
 
-        let mut map = HashMap::<Status, usize>::with_capacity(conflicted_base_priority * 2);
+        let mut map = HashMap::<Status, usize>::with_capacity(conflicted_priority + 1);
 
         for i in 0..status_length {
             let index_status = INDEX_STATUSES[i];
@@ -24,26 +24,14 @@ impl StatusPriorityMap {
             map.insert(index_status, i);
             map.insert(worktree_status, worktree_base_priority + i);
 
-            map.insert(
-                index_status | Status::CONFLICTED,
-                conflicted_base_priority + i,
-            );
-            map.insert(
-                worktree_status | Status::CONFLICTED,
-                conflicted_base_priority + worktree_base_priority + i,
-            );
-
             for (j, worktree_status_2) in WORKTREE_STATUSES.into_iter().enumerate() {
                 let combined_status = worktree_status_2 | index_status;
                 let priority = (i + 1) * status_length + j;
                 map.insert(combined_status, priority);
-
-                map.insert(
-                    combined_status | Status::CONFLICTED,
-                    conflicted_base_priority + priority,
-                );
             }
         }
+
+        map.insert(Status::CONFLICTED, conflicted_priority);
 
         StatusPriorityMap { map }
     }
