@@ -5,36 +5,29 @@ use crossterm::{
     style::{Color, ResetColor, SetForegroundColor},
     QueueableCommand,
 };
-use git2::Status;
 
-use crate::{change_list::ChangeList, statuses::get_status_symbols, Stdout};
+use crate::{change_list::ChangeList, Stdout};
+
+use super::status_text::StatusText;
 
 pub(crate) fn render_inline(stdout: &mut Stdout, change_list: &ChangeList) -> Result<()> {
     for change in change_list.changes.iter() {
-        let status = change.status;
+        let status_text = StatusText::from(&change.status);
 
-        if status == Status::WT_NEW {
-            stdout.queue(SetForegroundColor(Color::Red))?;
-            stdout.write_all(b"??")?;
+        if let Some(green_status_text) = status_text.green_text {
+            stdout.queue(SetForegroundColor(Color::Green))?;
+            stdout.write_all(green_status_text.as_bytes())?;
             stdout.queue(ResetColor)?;
         } else {
-            let status_symbols = get_status_symbols(&status);
+            stdout.write_all(b" ")?;
+        }
 
-            if let Some(index_status_symbol) = status_symbols[0] {
-                stdout.queue(SetForegroundColor(Color::Green))?;
-                stdout.write_all(index_status_symbol.as_bytes())?;
-                stdout.queue(ResetColor)?;
-            } else {
-                stdout.write_all(b" ")?;
-            }
-
-            if let Some(worktree_status_symbol) = status_symbols[1] {
-                stdout.queue(SetForegroundColor(Color::Red))?;
-                stdout.write_all(worktree_status_symbol.as_bytes())?;
-                stdout.queue(ResetColor)?;
-            } else {
-                stdout.write_all(b" ")?;
-            }
+        if let Some(red_status_text) = status_text.red_text {
+            stdout.queue(SetForegroundColor(Color::Red))?;
+            stdout.write_all(red_status_text.as_bytes())?;
+            stdout.queue(ResetColor)?;
+        } else {
+            stdout.write_all(b" ")?;
         }
 
         stdout.write_all(b" ")?;

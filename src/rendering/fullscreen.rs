@@ -2,7 +2,6 @@ use std::io::Write;
 
 use anyhow::{Context, Result};
 use crossterm::{cursor, terminal, QueueableCommand};
-use git2::Status;
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Corner, Direction, Layout},
@@ -14,9 +13,10 @@ use ratatui::{
 
 use crate::{
     change_list::{Change, ChangeList},
-    statuses::get_status_symbols,
     Stdout,
 };
+
+use super::status_text::StatusText;
 
 const INPUT_CONTROLS: [[&str; 2]; 5] = [
     ["[enter]", "done"],
@@ -100,24 +100,18 @@ impl FullscreenRenderer<'_> {
     fn list_item_widget_from_change(change: &Change, is_selected: bool) -> ListItem {
         let mut line = Vec::<Span>::new();
 
-        let status = change.status;
+        let status_text = StatusText::from(&change.status);
 
-        if status == Status::WT_NEW {
-            line.push(Span::styled("??", RED_TEXT));
+        if let Some(green_status_text) = status_text.green_text {
+            line.push(Span::styled(green_status_text, GREEN_TEXT));
         } else {
-            let status_symbols = get_status_symbols(&status);
+            line.push(Span::raw(" "));
+        }
 
-            if let Some(index_status_symbol) = status_symbols[0] {
-                line.push(Span::styled(index_status_symbol, GREEN_TEXT));
-            } else {
-                line.push(Span::raw(" "));
-            }
-
-            if let Some(worktree_status_symbol) = status_symbols[1] {
-                line.push(Span::styled(worktree_status_symbol, RED_TEXT));
-            } else {
-                line.push(Span::raw(" "));
-            }
+        if let Some(worktree_status_symbol) = status_text.red_text {
+            line.push(Span::styled(worktree_status_symbol, RED_TEXT));
+        } else {
+            line.push(Span::raw(" "));
         }
 
         line.push(Span::raw(" "));
