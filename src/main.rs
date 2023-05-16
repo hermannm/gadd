@@ -30,7 +30,7 @@ fn main() -> Result<()> {
 
     {
         let mut renderer = FullscreenRenderer::new(&mut stdout)?;
-        renderer.render(&mut change_list)?;
+        renderer.render(&change_list)?;
         user_input_event_loop(&mut change_list, &mut renderer)?;
     } // drops renderer, exiting fullscreen
 

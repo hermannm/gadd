@@ -1,6 +1,5 @@
 use anyhow::{Context, Result};
 use git2::{Index, Repository, Status};
-use ratatui::widgets::ListState;
 
 use crate::{
     change_ordering::ChangeOrdering,
@@ -10,7 +9,7 @@ use crate::{
 
 pub(super) struct ChangeList<'repo> {
     pub changes: Vec<Change>,
-    pub selected_change: ListState,
+    pub index_of_selected_change: usize,
     change_ordering: ChangeOrdering,
     repository: &'repo Repository,
     index: Index,
@@ -33,7 +32,7 @@ impl<'repo> ChangeList<'repo> {
 
         let mut change_list = ChangeList {
             changes,
-            selected_change: ListState::default(),
+            index_of_selected_change: 0,
             change_ordering,
             repository,
             index,
@@ -67,29 +66,25 @@ impl<'repo> ChangeList<'repo> {
 
     pub fn refresh_changes(&mut self) -> Result<()> {
         self.changes = ChangeList::get_changes(self.repository)?;
-        let new_changes = self.change_ordering.sort_changes(&mut self.changes);
+        self.change_ordering.sort_changes(&mut self.changes);
 
         let changes_length = self.changes.len();
 
-        if let Some(mut index_of_selected_change) = self.get_selected_change() {
-            index_of_selected_change += new_changes;
-
-            if index_of_selected_change >= changes_length {
-                index_of_selected_change = changes_length - 1;
-            }
-
-            self.select_change(index_of_selected_change);
+        if changes_length == 0 {
+            self.index_of_selected_change = 0;
+        } else if changes_length <= self.index_of_selected_change {
+            self.index_of_selected_change = changes_length - 1;
         }
 
         Ok(())
     }
 
     pub fn stage_selected_change(&mut self) -> Result<()> {
-        let Some(selected_change) = self.get_selected_change() else {
+        if self.changes.is_empty() {
             return Ok(());
-        };
+        }
 
-        let change = &self.changes[selected_change];
+        let change = &self.changes[self.index_of_selected_change];
         let path = bytes_to_path(&change.path);
 
         if change.status.is_wt_deleted() {
@@ -113,11 +108,11 @@ impl<'repo> ChangeList<'repo> {
     }
 
     pub fn unstage_selected_change(&mut self) -> Result<()> {
-        let Some(selected_change) = self.get_selected_change() else {
+        if self.changes.is_empty() {
             return Ok(());
-        };
+        }
 
-        let change = &self.changes[selected_change];
+        let change = &self.changes[self.index_of_selected_change];
         let path = bytes_to_path(&change.path);
 
         if change.status.is_index_new() {
@@ -126,6 +121,11 @@ impl<'repo> ChangeList<'repo> {
                 format!("Failed to remove '{path}' from Git index")
             })?;
         } else {
+            // Unstaging changes to a previously added file involves:
+            // 1. Getting the "tree entry" for the file in the HEAD tree of the repository
+            //    (i.e. the current state of the file)
+            // 2. Creating a new "index entry" from that tree entry and adding it to the Git index
+
             let head = self
                 .repository
                 .head()
@@ -160,53 +160,35 @@ impl<'repo> ChangeList<'repo> {
         Ok(())
     }
 
-    pub fn increment_selected_change(&mut self) {
-        let Some(selected_change) = self.get_selected_change() else {
-            return;
-        };
+    pub fn select_next_change(&mut self) {
+        let changes_length = self.changes.len();
 
-        if selected_change < self.changes.len() - 1 {
-            self.select_change(selected_change + 1);
+        if changes_length > 0 && self.index_of_selected_change < changes_length - 1 {
+            self.index_of_selected_change += 1;
         }
     }
 
-    pub fn decrement_selected_change(&mut self) {
-        let Some(index_of_selected_change) = self.get_selected_change() else {
-            return;
-        };
-
-        if index_of_selected_change > 0 {
-            self.select_change(index_of_selected_change - 1);
+    pub fn select_previous_change(&mut self) {
+        if self.index_of_selected_change > 0 {
+            self.index_of_selected_change -= 1;
         }
-    }
-
-    pub fn get_selected_change(&self) -> Option<usize> {
-        self.selected_change.selected()
-    }
-
-    fn select_change(&mut self, index_of_selected_change: usize) {
-        self.selected_change.select(Some(index_of_selected_change));
     }
 
     fn select_default_change(&mut self) {
-        let mut highest_index_per_worktree_status: Vec<(Status, Option<usize>)> = WORKTREE_STATUSES
-            .into_iter()
-            .map(|status| (status, None))
-            .collect();
+        if self.changes.is_empty() {
+            return;
+        }
 
         for (i, change) in self.changes.iter().enumerate() {
-            for (status, index) in highest_index_per_worktree_status.iter_mut() {
-                if change.status == *status {
-                    *index = Some(i);
-                    break;
-                }
+            if WORKTREE_STATUSES.contains(&change.status) {
+                self.index_of_selected_change = i;
+                return;
             }
         }
 
-        for (_, index) in highest_index_per_worktree_status.into_iter().rev() {
-            if let Some(index) = index {
-                self.select_change(index);
-                return;
+        for (i, change) in self.changes.iter().enumerate() {
+            if change.status.is_conflicted() {
+                self.index_of_selected_change = i;
             }
         }
     }

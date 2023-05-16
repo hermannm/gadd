@@ -36,11 +36,11 @@ pub(crate) fn user_input_event_loop(
                     renderer.render(change_list)?;
                 }
                 (Up, _) => {
-                    change_list.increment_selected_change();
+                    change_list.select_previous_change();
                     renderer.render(change_list)?;
                 }
                 (Down, _) => {
-                    change_list.decrement_selected_change();
+                    change_list.select_next_change();
                     renderer.render(change_list)?;
                 }
                 _ => {

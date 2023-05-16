@@ -5,11 +5,11 @@ use crossterm::{cursor, terminal, QueueableCommand};
 use git2::Status;
 use ratatui::{
     backend::CrosstermBackend,
-    layout::{Constraint, Corner, Direction, Layout, Rect},
+    layout::{Constraint, Corner, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Span, Spans},
-    widgets::{Block, List, ListItem},
-    Frame, Terminal,
+    widgets::{Block, List, ListItem, ListState},
+    Terminal,
 };
 
 use crate::{
@@ -26,11 +26,10 @@ const INPUT_CONTROLS: [[&str; 2]; 5] = [
     ["[down]", "move down"],
 ];
 
-type TerminalBackend<'stdout> = CrosstermBackend<&'stdout mut Stdout>;
-
 pub(crate) struct FullscreenRenderer<'stdout> {
-    terminal: Terminal<TerminalBackend<'stdout>>,
+    terminal: Terminal<CrosstermBackend<&'stdout mut Stdout>>,
     input_controls_widget: Block<'static>,
+    list_widget_state: ListState,
 }
 
 impl FullscreenRenderer<'_> {
@@ -47,15 +46,16 @@ impl FullscreenRenderer<'_> {
         let terminal = ratatui::Terminal::new(CrosstermBackend::new(stdout))
             .context("Failed to create terminal instance")?;
 
-        let input_controls_widget = FullscreenRenderer::new_input_controls_widget();
-
         Ok(FullscreenRenderer {
             terminal,
-            input_controls_widget,
+            input_controls_widget: FullscreenRenderer::new_input_controls_widget(),
+            list_widget_state: ListState::default(),
         })
     }
 
-    pub fn render(&mut self, change_list: &mut ChangeList) -> Result<()> {
+    pub fn render(&mut self, change_list: &ChangeList) -> Result<()> {
+        self.update_list_widget_state(change_list);
+
         self.terminal
             .draw(|frame| {
                 let chunks = Layout::default()
@@ -63,7 +63,9 @@ impl FullscreenRenderer<'_> {
                     .constraints([Constraint::Min(1), Constraint::Length(1)])
                     .split(frame.size());
 
-                FullscreenRenderer::render_change_list(change_list, frame, chunks[0]);
+                let list_widget = FullscreenRenderer::list_widget_from_changes(change_list);
+                frame.render_stateful_widget(list_widget, chunks[0], &mut self.list_widget_state);
+
                 frame.render_widget(self.input_controls_widget.clone(), chunks[1]);
             })
             .context("Failed to draw to terminal")?;
@@ -71,27 +73,31 @@ impl FullscreenRenderer<'_> {
         Ok(())
     }
 
-    fn render_change_list(
-        change_list: &mut ChangeList,
-        frame: &mut Frame<TerminalBackend<'_>>,
-        area: Rect,
-    ) {
+    fn update_list_widget_state(&mut self, change_list: &ChangeList) {
+        let changes_length = change_list.changes.len();
+
+        if changes_length == 0 {
+            self.list_widget_state.select(None);
+            return;
+        }
+
+        let reverse_index = changes_length - 1 - change_list.index_of_selected_change;
+        self.list_widget_state.select(Some(reverse_index));
+    }
+
+    fn list_widget_from_changes<'a>(change_list: &'a ChangeList) -> List<'a> {
         let mut list_items = Vec::<ListItem>::with_capacity(change_list.changes.len());
 
-        for (i, change) in change_list.changes.iter().enumerate() {
-            let is_selected =
-                matches!(change_list.get_selected_change(), Some(selected) if selected == i);
-
-            let list_item = FullscreenRenderer::new_change_list_item(change, is_selected);
+        for (i, change) in change_list.changes.iter().enumerate().rev() {
+            let is_selected = i == change_list.index_of_selected_change;
+            let list_item = FullscreenRenderer::list_item_widget_from_change(change, is_selected);
             list_items.push(list_item);
         }
 
-        let list_widget = List::new(list_items).start_corner(Corner::BottomLeft);
-
-        frame.render_stateful_widget(list_widget, area, &mut change_list.selected_change);
+        List::new(list_items).start_corner(Corner::BottomLeft)
     }
 
-    fn new_change_list_item(change: &Change, is_selected: bool) -> ListItem {
+    fn list_item_widget_from_change(change: &Change, is_selected: bool) -> ListItem {
         let mut line = Vec::<Span>::new();
 
         let status = change.status;

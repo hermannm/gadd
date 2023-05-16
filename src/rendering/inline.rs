@@ -14,7 +14,7 @@ use crate::{
 };
 
 pub(crate) fn render_inline(stdout: &mut Stdout, change_list: &ChangeList) -> Result<()> {
-    for change in change_list.changes.iter().rev() {
+    for change in change_list.changes.iter() {
         let status = change.status;
 
         if status == Status::WT_NEW {

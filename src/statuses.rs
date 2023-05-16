@@ -1,19 +1,19 @@
 use git2::Status;
 
 pub(super) const INDEX_STATUSES: [Status; 5] = [
-    Status::INDEX_NEW,
-    Status::INDEX_DELETED,
-    Status::INDEX_RENAMED,
-    Status::INDEX_TYPECHANGE,
     Status::INDEX_MODIFIED,
+    Status::INDEX_TYPECHANGE,
+    Status::INDEX_RENAMED,
+    Status::INDEX_DELETED,
+    Status::INDEX_NEW,
 ];
 
 pub(super) const WORKTREE_STATUSES: [Status; 5] = [
-    Status::WT_NEW,
-    Status::WT_DELETED,
-    Status::WT_RENAMED,
-    Status::WT_TYPECHANGE,
     Status::WT_MODIFIED,
+    Status::WT_TYPECHANGE,
+    Status::WT_RENAMED,
+    Status::WT_DELETED,
+    Status::WT_NEW,
 ];
 
 pub(super) fn get_status_symbol(
