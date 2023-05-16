@@ -14,7 +14,7 @@ use ratatui::{
 
 use crate::{
     change_list::{Change, ChangeList},
-    statuses::{get_status_symbol, INDEX_STATUSES, WORKTREE_STATUSES},
+    statuses::get_status_symbols,
     Stdout,
 };
 
@@ -105,13 +105,15 @@ impl FullscreenRenderer<'_> {
         if status == Status::WT_NEW {
             line.push(Span::styled("??", RED_TEXT));
         } else {
-            if let Some(index_status_symbol) = get_status_symbol(status, INDEX_STATUSES) {
+            let status_symbols = get_status_symbols(&status);
+
+            if let Some(index_status_symbol) = status_symbols[0] {
                 line.push(Span::styled(index_status_symbol, GREEN_TEXT));
             } else {
                 line.push(Span::raw(" "));
             }
 
-            if let Some(worktree_status_symbol) = get_status_symbol(status, WORKTREE_STATUSES) {
+            if let Some(worktree_status_symbol) = status_symbols[1] {
                 line.push(Span::styled(worktree_status_symbol, RED_TEXT));
             } else {
                 line.push(Span::raw(" "));

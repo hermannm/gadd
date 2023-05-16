@@ -7,11 +7,7 @@ use crossterm::{
 };
 use git2::Status;
 
-use crate::{
-    change_list::ChangeList,
-    statuses::{get_status_symbol, INDEX_STATUSES, WORKTREE_STATUSES},
-    Stdout,
-};
+use crate::{change_list::ChangeList, statuses::get_status_symbols, Stdout};
 
 pub(crate) fn render_inline(stdout: &mut Stdout, change_list: &ChangeList) -> Result<()> {
     for change in change_list.changes.iter() {
@@ -22,7 +18,9 @@ pub(crate) fn render_inline(stdout: &mut Stdout, change_list: &ChangeList) -> Re
             stdout.write_all(b"??")?;
             stdout.queue(ResetColor)?;
         } else {
-            if let Some(index_status_symbol) = get_status_symbol(status, INDEX_STATUSES) {
+            let status_symbols = get_status_symbols(&status);
+
+            if let Some(index_status_symbol) = status_symbols[0] {
                 stdout.queue(SetForegroundColor(Color::Green))?;
                 stdout.write_all(index_status_symbol.as_bytes())?;
                 stdout.queue(ResetColor)?;
@@ -30,7 +28,7 @@ pub(crate) fn render_inline(stdout: &mut Stdout, change_list: &ChangeList) -> Re
                 stdout.write_all(b" ")?;
             }
 
-            if let Some(worktree_status_symbol) = get_status_symbol(status, WORKTREE_STATUSES) {
+            if let Some(worktree_status_symbol) = status_symbols[1] {
                 stdout.queue(SetForegroundColor(Color::Red))?;
                 stdout.write_all(worktree_status_symbol.as_bytes())?;
                 stdout.queue(ResetColor)?;
