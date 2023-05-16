@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 
 use crate::{change_list::ChangeList, rendering::fullscreen::FullscreenRenderer};
@@ -8,10 +8,11 @@ pub(crate) fn user_input_event_loop(
     renderer: &mut FullscreenRenderer,
 ) -> Result<()> {
     #[cfg(windows)]
-    handle_initial_enter_press_windows()?;
+    handle_initial_enter_press_windows()
+        .context("Failed to read initial ENTER press (Windows-specific)")?;
 
     loop {
-        let event = event::read()?;
+        let event = event::read().context("Failed to read user input")?;
 
         if let Event::Key(event) = event {
             use KeyCode::*;
@@ -21,11 +22,17 @@ pub(crate) fn user_input_event_loop(
                     break;
                 }
                 (Char(' '), _) => {
-                    change_list.stage_selected_change()?;
+                    change_list
+                        .stage_selected_change()
+                        .context("Failed to stage selected change")?;
+
                     renderer.render(change_list)?;
                 }
                 (Char('r'), _) => {
-                    change_list.unstage_selected_change()?;
+                    change_list
+                        .unstage_selected_change()
+                        .context("Failed to unstage selected change")?;
+
                     renderer.render(change_list)?;
                 }
                 (Up, _) => {
@@ -51,7 +58,7 @@ fn handle_initial_enter_press_windows() -> Result<()> {
     use crossterm::event::KeyEvent;
 
     loop {
-        let event = event::read()?;
+        let event = event::read().context("Failed to read user input")?;
 
         if matches!(
             event,

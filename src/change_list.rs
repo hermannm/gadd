@@ -45,7 +45,9 @@ impl<'repo> ChangeList<'repo> {
     }
 
     fn get_changes(repository: &Repository) -> Result<Vec<Change>> {
-        let statuses = repository.statuses(None)?;
+        let statuses = repository
+            .statuses(None)
+            .context("Failed to get change statuses for repository")?;
 
         let mut changes = Vec::<Change>::with_capacity(statuses.len());
 
@@ -91,13 +93,22 @@ impl<'repo> ChangeList<'repo> {
         let path = bytes_to_path(&change.path);
 
         if change.status.is_wt_deleted() {
-            self.index.remove_path(path)?;
+            self.index.remove_path(path).with_context(|| {
+                let path = path.to_string_lossy();
+                format!("Failed to remove deleted file '{path}' from Git index")
+            })?;
         } else {
-            self.index.add_path(path)?;
+            self.index.add_path(path).with_context(|| {
+                let path = path.to_string_lossy();
+                format!("Failed to add '{path}' to Git index")
+            })?;
         }
 
-        self.index.write()?;
-        self.refresh_changes()?;
+        self.index.write().context("Failed to write to Git index")?;
+
+        self.refresh_changes()
+            .context("Failed to refresh changes after staging")?;
+
         Ok(())
     }
 
@@ -110,11 +121,24 @@ impl<'repo> ChangeList<'repo> {
         let path = bytes_to_path(&change.path);
 
         if change.status.is_index_new() {
-            self.index.remove_path(path)?;
+            self.index.remove_path(path).with_context(|| {
+                let path = path.to_string_lossy();
+                format!("Failed to remove '{path}' from Git index")
+            })?;
         } else {
-            let head = self.repository.head()?;
-            let tree = head.peel_to_tree()?;
-            let tree_entry = tree.get_path(path)?;
+            let head = self
+                .repository
+                .head()
+                .context("Failed to get HEAD reference from repository")?;
+
+            let tree = head
+                .peel_to_tree()
+                .context("Failed to get file tree from HEAD reference in repository")?;
+
+            let tree_entry = tree.get_path(path).with_context(|| {
+                let path = path.to_string_lossy();
+                format!("Failed to get tree entry for '{path}' from HEAD tree in repository")
+            })?;
 
             let index_entry = new_index_entry(
                 tree_entry.id(),
@@ -122,11 +146,16 @@ impl<'repo> ChangeList<'repo> {
                 change.path.clone(),
             );
 
-            self.index.add(&index_entry)?;
+            self.index.add(&index_entry).with_context(|| {
+                let path = path.to_string_lossy();
+                format!("Failed to restore '{path}' from Git index to HEAD version")
+            })?;
         }
 
-        self.index.write()?;
-        self.refresh_changes()?;
+        self.index.write().context("Failed to write to Git index")?;
+
+        self.refresh_changes()
+            .context("Failed to refresh changes after unstaging")?;
 
         Ok(())
     }

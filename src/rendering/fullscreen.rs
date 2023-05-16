@@ -35,13 +35,18 @@ pub(crate) struct FullscreenRenderer<'stdout> {
 
 impl FullscreenRenderer<'_> {
     pub fn new(stdout: &mut Stdout) -> Result<FullscreenRenderer> {
-        terminal::enable_raw_mode()?;
+        terminal::enable_raw_mode().context("Failed to enter terminal raw mode")?;
         stdout
-            .queue(terminal::EnterAlternateScreen)?
-            .queue(cursor::Hide)?
-            .flush()?;
+            .queue(terminal::EnterAlternateScreen)
+            .context("Failed to enter fullscreen in terminal")?
+            .queue(cursor::Hide)
+            .context("Failed to hide cursor")?
+            .flush()
+            .context("Failed to flush terminal setup to stdout")?;
 
-        let terminal = ratatui::Terminal::new(CrosstermBackend::new(stdout))?;
+        let terminal = ratatui::Terminal::new(CrosstermBackend::new(stdout))
+            .context("Failed to create terminal instance")?;
+
         let input_controls_widget = FullscreenRenderer::new_input_controls_widget();
 
         Ok(FullscreenRenderer {
@@ -51,15 +56,17 @@ impl FullscreenRenderer<'_> {
     }
 
     pub fn render(&mut self, change_list: &mut ChangeList) -> Result<()> {
-        self.terminal.draw(|frame| {
-            let chunks = Layout::default()
-                .direction(Direction::Vertical)
-                .constraints([Constraint::Min(1), Constraint::Length(1)])
-                .split(frame.size());
+        self.terminal
+            .draw(|frame| {
+                let chunks = Layout::default()
+                    .direction(Direction::Vertical)
+                    .constraints([Constraint::Min(1), Constraint::Length(1)])
+                    .split(frame.size());
 
-            FullscreenRenderer::render_change_list(change_list, frame, chunks[0]);
-            frame.render_widget(self.input_controls_widget.clone(), chunks[1]);
-        })?;
+                FullscreenRenderer::render_change_list(change_list, frame, chunks[0]);
+                frame.render_widget(self.input_controls_widget.clone(), chunks[1]);
+            })
+            .context("Failed to draw to terminal")?;
 
         Ok(())
     }
