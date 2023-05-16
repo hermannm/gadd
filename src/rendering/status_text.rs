@@ -27,9 +27,9 @@ impl From<&Status> for StatusText {
                 }
             }
 
-            for (j, status_to_check) in WORKTREE_STATUSES.into_iter().enumerate() {
+            for (i, status_to_check) in WORKTREE_STATUSES.into_iter().enumerate() {
                 if status.intersects(status_to_check) {
-                    status_text.red_text = Some(STATUS_SYMBOLS[j]);
+                    status_text.red_text = Some(STATUS_SYMBOLS[i]);
                 }
             }
         }
