@@ -41,7 +41,7 @@ pub(crate) fn render_inline(stdout: &mut Stdout, change_list: &ChangeList) -> Re
 
         stdout.write_all(b" ")?;
         stdout.write_all(&change.path)?;
-        stdout.write_all("\r\n".as_bytes())?;
+        stdout.write_all(b"\r\n")?;
     }
 
     stdout.flush()?;
