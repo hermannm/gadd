@@ -179,17 +179,25 @@ impl<'repo> ChangeList<'repo> {
             return;
         }
 
+        let mut first_worktree_change_index: Option<usize> = None;
+
         for (i, change) in self.changes.iter().enumerate() {
-            if WORKTREE_STATUSES.contains(&change.status) {
+            if first_worktree_change_index.is_none()
+                && WORKTREE_STATUSES
+                    .into_iter()
+                    .any(|worktree_status| change.status.intersects(worktree_status))
+            {
+                first_worktree_change_index = Some(i);
+            }
+
+            if change.status.is_conflicted() {
                 self.index_of_selected_change = i;
                 return;
             }
         }
 
-        for (i, change) in self.changes.iter().enumerate() {
-            if change.status.is_conflicted() {
-                self.index_of_selected_change = i;
-            }
+        if let Some(index) = first_worktree_change_index {
+            self.index_of_selected_change = index;
         }
     }
 }
