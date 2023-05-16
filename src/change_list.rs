@@ -1,8 +1,14 @@
+use std::io::Write;
+
 use anyhow::{Context, Result};
+use crossterm::{
+    style::{ResetColor, SetForegroundColor},
+    QueueableCommand,
+};
 use git2::{Index, Repository, Status};
 use ratatui::{
     layout::{Corner, Rect},
-    style::{Color, Style},
+    style::Style,
     text::{Span, Spans},
     widgets::{List, ListItem, ListState},
 };
@@ -11,7 +17,7 @@ use crate::{
     change_ordering::ChangeOrdering,
     statuses::{get_status_symbol, INDEX_STATUSES, WORKTREE_STATUSES},
     utils::{bytes_to_path, new_index_entry},
-    Frame,
+    Frame, InlineTerminal,
 };
 
 pub(super) struct ChangeList<'repo> {
@@ -88,7 +94,9 @@ impl<'repo> ChangeList<'repo> {
         Ok(())
     }
 
-    pub fn render(&mut self, frame: &mut Frame, area: Rect, highlight_selected_change: bool) {
+    pub fn render_fullscreen(&mut self, frame: &mut Frame, area: Rect) {
+        use ratatui::style::Color;
+
         let red_text = Style::default().fg(Color::Red);
         let green_text = Style::default().fg(Color::Green);
         let selected_text = Style::default().fg(Color::Black).bg(Color::White);
@@ -121,9 +129,7 @@ impl<'repo> ChangeList<'repo> {
             line.push({
                 let path_string = String::from_utf8_lossy(&change.path);
 
-                if highlight_selected_change
-                    && matches!(self.get_selected_change(), Some(selected) if selected == i)
-                {
+                if matches!(self.get_selected_change(), Some(selected) if selected == i) {
                     Span::styled(path_string, selected_text)
                 } else {
                     Span::raw(path_string)
@@ -135,11 +141,45 @@ impl<'repo> ChangeList<'repo> {
 
         let list = List::new(items).start_corner(Corner::BottomLeft);
 
-        if highlight_selected_change {
-            frame.render_stateful_widget(list, area, &mut self.selected_change);
-        } else {
-            frame.render_widget(list, area);
+        frame.render_stateful_widget(list, area, &mut self.selected_change);
+    }
+
+    pub fn render_inline(&self, terminal: &mut InlineTerminal) -> Result<()> {
+        use crossterm::style::Color;
+
+        for change in self.changes.iter().rev() {
+            let status = change.status;
+
+            if status == Status::WT_NEW {
+                terminal.queue(SetForegroundColor(Color::Red))?;
+                terminal.write_all(b"??")?;
+                terminal.queue(ResetColor)?;
+            } else {
+                if let Some(index_status_symbol) = get_status_symbol(status, INDEX_STATUSES) {
+                    terminal.queue(SetForegroundColor(Color::Green))?;
+                    terminal.write_all(index_status_symbol.as_bytes())?;
+                    terminal.queue(ResetColor)?;
+                } else {
+                    terminal.write_all(b" ")?;
+                }
+
+                if let Some(worktree_status_symbol) = get_status_symbol(status, WORKTREE_STATUSES) {
+                    terminal.queue(SetForegroundColor(Color::Red))?;
+                    terminal.write_all(worktree_status_symbol.as_bytes())?;
+                    terminal.queue(ResetColor)?;
+                } else {
+                    terminal.write_all(b" ")?;
+                }
+            }
+
+            terminal.write_all(b" ")?;
+            terminal.write_all(&change.path)?;
+            terminal.write_all("\r\n".as_bytes())?;
         }
+
+        terminal.flush()?;
+
+        Ok(())
     }
 
     pub fn stage_selected_change(&mut self) -> Result<()> {

@@ -1,4 +1,5 @@
-use std::path::Path;
+use crate::InlineTerminal;
+use std::{fs::File, path::Path};
 
 use git2::{IndexEntry, IndexTime, Oid};
 
@@ -13,6 +14,22 @@ pub(super) fn bytes_to_path(bytes: &[u8]) -> &Path {
 #[cfg(windows)]
 pub(super) fn bytes_to_path(bytes: &[u8]) -> &Path {
     Path::new(std::str::from_utf8(bytes).unwrap())
+}
+
+#[cfg(unix)]
+pub(super) fn get_inline_terminal() -> InlineTerminal {
+    use std::os::unix::io::FromRawFd;
+
+    unsafe { File::from_raw_fd(1) }
+}
+
+#[cfg(windows)]
+pub(super) fn get_inline_terminal() -> InlineTerminal {
+    use kernel32::GetStdHandle;
+    use std::os::windows::io::FromRawHandle;
+    use winapi::um::winbase::STD_OUTPUT_HANDLE;
+
+    unsafe { File::from_raw_handle(GetStdHandle(STD_OUTPUT_HANDLE)) }
 }
 
 pub(super) fn new_index_entry(id: Oid, mode: u32, path: Vec<u8>) -> IndexEntry {

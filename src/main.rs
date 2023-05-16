@@ -8,8 +8,8 @@ use ratatui::{
     self,
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
-    TerminalOptions, Viewport,
 };
+use utils::get_inline_terminal;
 
 use crate::change_list::ChangeList;
 
@@ -19,7 +19,8 @@ mod input;
 mod statuses;
 mod utils;
 
-type Terminal = ratatui::Terminal<CrosstermBackend<Stdout>>;
+type FullscreenTerminal = ratatui::Terminal<CrosstermBackend<Stdout>>;
+type InlineTerminal = std::fs::File;
 type Frame<'a> = ratatui::Frame<'a, CrosstermBackend<Stdout>>;
 
 fn main() -> Result<()> {
@@ -61,7 +62,7 @@ fn run_fullscreen_application(change_list: &mut ChangeList) -> Result<()> {
 }
 
 pub(self) fn render(
-    terminal: &mut Terminal,
+    terminal: &mut FullscreenTerminal,
     change_list: &mut ChangeList,
     input_widget: &InputControlsWidget,
 ) -> Result<()> {
@@ -71,7 +72,7 @@ pub(self) fn render(
             .constraints([Constraint::Min(1), Constraint::Length(1)])
             .split(frame.size());
 
-        change_list.render(frame, chunks[0], true);
+        change_list.render_fullscreen(frame, chunks[0]);
         input_widget.render(frame, chunks[1]);
     })?;
 
@@ -80,21 +81,8 @@ pub(self) fn render(
 
 fn render_changes_on_exit(change_list: &mut ChangeList) -> Result<()> {
     change_list.refresh_changes()?;
-
-    let change_list_length = u16::try_from(change_list.changes.len()).unwrap_or(u16::MAX);
-
-    let mut terminal = ratatui::Terminal::with_options(
-        CrosstermBackend::new(stdout()),
-        TerminalOptions {
-            viewport: Viewport::Inline(change_list_length),
-        },
-    )?;
-
-    terminal.draw(|frame| {
-        change_list.render(frame, frame.size(), false);
-    })?;
-
-    terminal.backend_mut().write_all("\n".as_bytes())?;
+    let mut terminal = get_inline_terminal();
+    change_list.render_inline(&mut terminal)?;
 
     Ok(())
 }

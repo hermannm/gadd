@@ -1,12 +1,12 @@
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 
-use crate::{change_list::ChangeList, render, Terminal};
+use crate::{change_list::ChangeList, render, FullscreenTerminal};
 
 use super::widget::InputControlsWidget;
 
 pub(crate) fn user_input_event_loop(
-    terminal: &mut Terminal,
+    terminal: &mut FullscreenTerminal,
     change_list: &mut ChangeList,
     input_widget: &InputControlsWidget,
 ) -> Result<()> {
