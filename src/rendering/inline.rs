@@ -1,4 +1,4 @@
-use std::{fs::File, io::Write};
+use std::io::Write;
 
 use anyhow::Result;
 use crossterm::{
@@ -10,11 +10,10 @@ use git2::Status;
 use crate::{
     change_list::ChangeList,
     statuses::{get_status_symbol, INDEX_STATUSES, WORKTREE_STATUSES},
+    Stdout,
 };
 
-pub(crate) fn render_inline(change_list: &ChangeList) -> Result<()> {
-    let mut stdout = get_raw_stdout();
-
+pub(crate) fn render_inline(stdout: &mut Stdout, change_list: &ChangeList) -> Result<()> {
     for change in change_list.changes.iter().rev() {
         let status = change.status;
 
@@ -48,20 +47,4 @@ pub(crate) fn render_inline(change_list: &ChangeList) -> Result<()> {
     stdout.flush()?;
 
     Ok(())
-}
-
-#[cfg(unix)]
-fn get_raw_stdout() -> File {
-    use std::os::unix::io::FromRawFd;
-
-    unsafe { File::from_raw_fd(1) }
-}
-
-#[cfg(windows)]
-fn get_raw_stdout() -> File {
-    use kernel32::GetStdHandle;
-    use std::os::windows::io::FromRawHandle;
-    use winapi::um::winbase::STD_OUTPUT_HANDLE;
-
-    unsafe { File::from_raw_handle(GetStdHandle(STD_OUTPUT_HANDLE)) }
 }

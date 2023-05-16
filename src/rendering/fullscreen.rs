@@ -1,4 +1,4 @@
-use std::io::{stdout, Stdout, Write};
+use std::io::Write;
 
 use anyhow::{Context, Result};
 use crossterm::{cursor, terminal, QueueableCommand};
@@ -15,6 +15,7 @@ use ratatui::{
 use crate::{
     change_list::{Change, ChangeList},
     statuses::{get_status_symbol, INDEX_STATUSES, WORKTREE_STATUSES},
+    Stdout,
 };
 
 const INPUT_CONTROLS: [[&str; 2]; 5] = [
@@ -25,15 +26,16 @@ const INPUT_CONTROLS: [[&str; 2]; 5] = [
     ["[down]", "move down"],
 ];
 
-pub(crate) struct FullscreenRenderer {
-    terminal: Terminal<CrosstermBackend<Stdout>>,
+type TerminalBackend<'stdout> = CrosstermBackend<&'stdout mut Stdout>;
+
+pub(crate) struct FullscreenRenderer<'stdout> {
+    terminal: Terminal<TerminalBackend<'stdout>>,
     input_controls_widget: Block<'static>,
 }
 
-impl FullscreenRenderer {
-    pub fn new() -> Result<FullscreenRenderer> {
+impl FullscreenRenderer<'_> {
+    pub fn new(stdout: &mut Stdout) -> Result<FullscreenRenderer> {
         terminal::enable_raw_mode()?;
-        let mut stdout = stdout();
         stdout
             .queue(terminal::EnterAlternateScreen)?
             .queue(cursor::Hide)?
@@ -64,7 +66,7 @@ impl FullscreenRenderer {
 
     fn render_change_list(
         change_list: &mut ChangeList,
-        frame: &mut Frame<CrosstermBackend<Stdout>>,
+        frame: &mut Frame<TerminalBackend<'_>>,
         area: Rect,
     ) {
         let mut list_items = Vec::<ListItem>::with_capacity(change_list.changes.len());
@@ -137,9 +139,9 @@ impl FullscreenRenderer {
     }
 }
 
-impl Drop for FullscreenRenderer {
+impl Drop for FullscreenRenderer<'_> {
     fn drop(&mut self) {
-        let mut stdout = stdout();
+        let stdout = self.terminal.backend_mut();
 
         let alternate_screen_err = stdout
             .queue(terminal::LeaveAlternateScreen)
@@ -169,7 +171,7 @@ impl Drop for FullscreenRenderer {
         .into_iter()
         .flatten()
         {
-            println!("Error on cleanup: {error}");
+            writeln!(stdout, "Error on cleanup: {error}").expect("Failed to write to stdout");
         }
     }
 }
