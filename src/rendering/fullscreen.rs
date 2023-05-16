@@ -16,7 +16,7 @@ use crate::{
     Stdout,
 };
 
-use super::status_text::StatusText;
+use super::status_symbols::{get_status_symbols, StatusSymbol};
 
 const INPUT_CONTROLS: [[&str; 2]; 5] = [
     ["[enter]", "done"],
@@ -100,18 +100,12 @@ impl FullscreenRenderer<'_> {
     fn list_item_widget_from_change(change: &Change, is_selected: bool) -> ListItem {
         let mut line = Vec::<Span>::new();
 
-        let status_text = StatusText::from(&change.status);
-
-        if let Some(green_status_text) = status_text.green_text {
-            line.push(Span::styled(green_status_text, GREEN_TEXT));
-        } else {
-            line.push(Span::raw(" "));
-        }
-
-        if let Some(worktree_status_symbol) = status_text.red_text {
-            line.push(Span::styled(worktree_status_symbol, RED_TEXT));
-        } else {
-            line.push(Span::raw(" "));
+        for status_symbol in get_status_symbols(change.status) {
+            line.push(match status_symbol {
+                StatusSymbol::Green(symbol) => Span::styled(symbol, GREEN_TEXT),
+                StatusSymbol::Red(symbol) => Span::styled(symbol, RED_TEXT),
+                StatusSymbol::Space => Span::raw(" "),
+            });
         }
 
         line.push(Span::raw(" "));

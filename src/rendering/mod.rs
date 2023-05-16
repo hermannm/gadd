@@ -1,3 +1,3 @@
 pub mod fullscreen;
 pub mod inline;
-mod status_text;
+mod status_symbols;
