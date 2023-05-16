@@ -1,14 +1,11 @@
 use anyhow::Result;
 use crossterm::event::{self, Event, KeyCode, KeyModifiers};
 
-use crate::{change_list::ChangeList, render, FullscreenTerminal};
-
-use super::widget::InputControlsWidget;
+use crate::{change_list::ChangeList, rendering::fullscreen::FullscreenRenderer};
 
 pub(crate) fn user_input_event_loop(
-    terminal: &mut FullscreenTerminal,
     change_list: &mut ChangeList,
-    input_widget: &InputControlsWidget,
+    renderer: &mut FullscreenRenderer,
 ) -> Result<()> {
     #[cfg(windows)]
     handle_initial_enter_press_windows()?;
@@ -25,19 +22,19 @@ pub(crate) fn user_input_event_loop(
                 }
                 (Char(' '), _) => {
                     change_list.stage_selected_change()?;
-                    render(terminal, change_list, input_widget)?;
+                    renderer.render(change_list)?;
                 }
                 (Char('r'), _) => {
                     change_list.unstage_selected_change()?;
-                    render(terminal, change_list, input_widget)?;
+                    renderer.render(change_list)?;
                 }
                 (Up, _) => {
                     change_list.increment_selected_change();
-                    render(terminal, change_list, input_widget)?;
+                    renderer.render(change_list)?;
                 }
                 (Down, _) => {
                     change_list.decrement_selected_change();
-                    render(terminal, change_list, input_widget)?;
+                    renderer.render(change_list)?;
                 }
                 _ => {
                     continue;

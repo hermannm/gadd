@@ -1,28 +1,16 @@
-use std::io::Write;
-
 use anyhow::{Context, Result};
-use crossterm::{
-    style::{ResetColor, SetForegroundColor},
-    QueueableCommand,
-};
 use git2::{Index, Repository, Status};
-use ratatui::{
-    layout::{Corner, Rect},
-    style::Style,
-    text::{Span, Spans},
-    widgets::{List, ListItem, ListState},
-};
+use ratatui::widgets::ListState;
 
 use crate::{
     change_ordering::ChangeOrdering,
-    statuses::{get_status_symbol, INDEX_STATUSES, WORKTREE_STATUSES},
+    statuses::WORKTREE_STATUSES,
     utils::{bytes_to_path, new_index_entry},
-    Frame, InlineTerminal,
 };
 
 pub(super) struct ChangeList<'repo> {
     pub changes: Vec<Change>,
-    selected_change: ListState,
+    pub selected_change: ListState,
     change_ordering: ChangeOrdering,
     repository: &'repo Repository,
     index: Index,
@@ -90,94 +78,6 @@ impl<'repo> ChangeList<'repo> {
 
             self.select_change(index_of_selected_change);
         }
-
-        Ok(())
-    }
-
-    pub fn render_fullscreen(&mut self, frame: &mut Frame, area: Rect) {
-        use ratatui::style::Color;
-
-        let red_text = Style::default().fg(Color::Red);
-        let green_text = Style::default().fg(Color::Green);
-        let selected_text = Style::default().fg(Color::Black).bg(Color::White);
-
-        let mut items = Vec::<ListItem>::with_capacity(self.changes.len());
-
-        for (i, change) in self.changes.iter().enumerate() {
-            let mut line = Vec::<Span>::new();
-
-            let status = change.status;
-
-            if status == Status::WT_NEW {
-                line.push(Span::styled("??", red_text));
-            } else {
-                if let Some(index_status_symbol) = get_status_symbol(status, INDEX_STATUSES) {
-                    line.push(Span::styled(index_status_symbol, green_text));
-                } else {
-                    line.push(Span::raw(" "));
-                }
-
-                if let Some(worktree_status_symbol) = get_status_symbol(status, WORKTREE_STATUSES) {
-                    line.push(Span::styled(worktree_status_symbol, red_text));
-                } else {
-                    line.push(Span::raw(" "));
-                }
-            }
-
-            line.push(Span::raw(" "));
-
-            line.push({
-                let path_string = String::from_utf8_lossy(&change.path);
-
-                if matches!(self.get_selected_change(), Some(selected) if selected == i) {
-                    Span::styled(path_string, selected_text)
-                } else {
-                    Span::raw(path_string)
-                }
-            });
-
-            items.push(ListItem::new(Spans::from(line)));
-        }
-
-        let list = List::new(items).start_corner(Corner::BottomLeft);
-
-        frame.render_stateful_widget(list, area, &mut self.selected_change);
-    }
-
-    pub fn render_inline(&self, terminal: &mut InlineTerminal) -> Result<()> {
-        use crossterm::style::Color;
-
-        for change in self.changes.iter().rev() {
-            let status = change.status;
-
-            if status == Status::WT_NEW {
-                terminal.queue(SetForegroundColor(Color::Red))?;
-                terminal.write_all(b"??")?;
-                terminal.queue(ResetColor)?;
-            } else {
-                if let Some(index_status_symbol) = get_status_symbol(status, INDEX_STATUSES) {
-                    terminal.queue(SetForegroundColor(Color::Green))?;
-                    terminal.write_all(index_status_symbol.as_bytes())?;
-                    terminal.queue(ResetColor)?;
-                } else {
-                    terminal.write_all(b" ")?;
-                }
-
-                if let Some(worktree_status_symbol) = get_status_symbol(status, WORKTREE_STATUSES) {
-                    terminal.queue(SetForegroundColor(Color::Red))?;
-                    terminal.write_all(worktree_status_symbol.as_bytes())?;
-                    terminal.queue(ResetColor)?;
-                } else {
-                    terminal.write_all(b" ")?;
-                }
-            }
-
-            terminal.write_all(b" ")?;
-            terminal.write_all(&change.path)?;
-            terminal.write_all("\r\n".as_bytes())?;
-        }
-
-        terminal.flush()?;
 
         Ok(())
     }
@@ -251,7 +151,7 @@ impl<'repo> ChangeList<'repo> {
         }
     }
 
-    fn get_selected_change(&self) -> Option<usize> {
+    pub fn get_selected_change(&self) -> Option<usize> {
         self.selected_change.selected()
     }
 
