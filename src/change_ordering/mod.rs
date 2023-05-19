@@ -11,22 +11,27 @@ pub(super) struct ChangeOrdering {
 }
 
 impl ChangeOrdering {
-    pub fn sort_changes_and_save_ordering(changes: &mut Vec<Change>) -> ChangeOrdering {
+    pub fn with_capacity(capacity: usize) -> ChangeOrdering {
+        ChangeOrdering {
+            map: HashMap::with_capacity(capacity),
+        }
+    }
+
+    pub fn sort_changes_and_save_ordering(&mut self, changes: &mut [Change]) {
         let status_priorities = StatusPriorityMap::new();
 
         changes.sort_by(|change_1, change_2| {
-            status_priorities.compare_statuses(&change_1.status, &change_2.status)
+            let ordering = status_priorities.compare_statuses(&change_1.status, &change_2.status);
+
+            match ordering {
+                Ordering::Less | Ordering::Greater => ordering,
+                Ordering::Equal => ChangeOrdering::compare_paths(&change_1.path, &change_2.path),
+            }
         });
 
-        let mut ordering = ChangeOrdering {
-            map: HashMap::with_capacity(changes.len()),
-        };
-
         for (i, change) in changes.iter().enumerate() {
-            ordering.map.insert(change.path.clone(), i);
+            self.map.insert(change.path.clone(), i);
         }
-
-        ordering
     }
 
     pub fn sort_changes(&mut self, changes: &mut [Change]) {

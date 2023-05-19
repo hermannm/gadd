@@ -1,5 +1,5 @@
 use anyhow::{anyhow, bail, Context, Result};
-use git2::{Index, Repository};
+use git2::{Index, Repository, Statuses};
 
 use crate::{
     change_ordering::ChangeOrdering,
@@ -10,7 +10,7 @@ use crate::{
 pub(super) struct ChangeList<'repo> {
     pub changes: Vec<Change>,
     pub index_of_selected_change: usize,
-    change_ordering: ChangeOrdering,
+    ordering: ChangeOrdering,
     repository: &'repo Repository,
     index: Index,
 }
@@ -26,31 +26,35 @@ impl<'repo> ChangeList<'repo> {
             .index()
             .context("Failed to get Git index for repository")?;
 
-        let mut changes = ChangeList::get_changes(repository, &index)?;
+        let statuses = repository
+            .statuses(None)
+            .context("Failed to get change statuses for repository")?;
 
-        let change_ordering = ChangeOrdering::sort_changes_and_save_ordering(&mut changes);
+        let statuses_length = statuses.len();
 
         let mut change_list = ChangeList {
-            changes,
+            changes: Vec::<Change>::with_capacity(statuses_length),
             index_of_selected_change: 0,
-            change_ordering,
+            ordering: ChangeOrdering::with_capacity(statuses_length),
             repository,
             index,
         };
+
+        change_list.populate_changes(statuses)?;
+
+        change_list
+            .ordering
+            .sort_changes_and_save_ordering(&mut change_list.changes);
 
         change_list.select_default_change();
 
         Ok(change_list)
     }
 
-    fn get_changes(repository: &Repository, index: &Index) -> Result<Vec<Change>> {
-        let statuses = repository
-            .statuses(None)
-            .context("Failed to get change statuses for repository")?;
+    fn populate_changes(&mut self, statuses: Statuses) -> Result<()> {
+        self.changes.clear();
 
-        let statuses_length = statuses.len();
-        let mut changes = Vec::<Change>::with_capacity(statuses_length);
-        let mut conflicting_change_paths = Vec::<Vec<u8>>::with_capacity(statuses_length);
+        let mut conflicting_change_paths = Vec::<Vec<u8>>::with_capacity(self.changes.capacity());
 
         for status_entry in statuses.iter() {
             let status = status_entry.status();
@@ -64,7 +68,7 @@ impl<'repo> ChangeList<'repo> {
             if status.is_conflicted() {
                 conflicting_change_paths.push(path);
             } else {
-                changes.push(Change {
+                self.changes.push(Change {
                     path,
                     status: Status::NonConflicting(status),
                 });
@@ -72,22 +76,19 @@ impl<'repo> ChangeList<'repo> {
         }
 
         if !conflicting_change_paths.is_empty() {
-            ChangeList::get_conflicting_change_statuses(
-                &mut changes,
-                conflicting_change_paths,
-                index,
-            )?;
+            self.populate_conflicting_changes(conflicting_change_paths)
+                .context("Failed to get statuses for paths in merge conflict")?;
         }
 
-        Ok(changes)
+        Ok(())
     }
 
-    fn get_conflicting_change_statuses(
-        changes: &mut Vec<Change>,
+    fn populate_conflicting_changes(
+        &mut self,
         mut conflicting_change_paths: Vec<Vec<u8>>,
-        index: &Index,
     ) -> Result<()> {
-        let conflicts = index
+        let conflicts = self
+            .index
             .conflicts()
             .context("Failed to get merge conflicts from Git index")?;
 
@@ -128,7 +129,7 @@ impl<'repo> ChangeList<'repo> {
                 (None, None, None) => bail!("Invalid index merge conflict entry"),
             };
 
-            changes.push(Change {
+            self.changes.push(Change {
                 path: change_path,
                 status: Status::Conflicting { ours, theirs },
             });
@@ -142,8 +143,13 @@ impl<'repo> ChangeList<'repo> {
     }
 
     pub fn refresh_changes(&mut self) -> Result<()> {
-        self.changes = ChangeList::get_changes(self.repository, &self.index)?;
-        self.change_ordering.sort_changes(&mut self.changes);
+        let statuses = self
+            .repository
+            .statuses(None)
+            .context("Failed to get change statuses for repository")?;
+
+        self.populate_changes(statuses)?;
+        self.ordering.sort_changes(&mut self.changes);
 
         let changes_length = self.changes.len();
 
