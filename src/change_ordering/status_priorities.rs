@@ -37,8 +37,8 @@ impl StatusPriorityMap {
     }
 
     pub fn compare_statuses(&self, status_1: &Status, status_2: &Status) -> Ordering {
-        let priority_1 = self.map[status_1];
-        let priority_2 = self.map[status_2];
+        let priority_1 = self.map.get(status_1);
+        let priority_2 = self.map.get(status_2);
         priority_1.cmp(&priority_2)
     }
 }
