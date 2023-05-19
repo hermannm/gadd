@@ -1,7 +1,5 @@
-use std::collections::HashMap;
-
-use anyhow::{bail, Context, Result};
-use git2::{Index, IndexConflict, Repository};
+use anyhow::{anyhow, bail, Context, Result};
+use git2::{Index, Repository};
 
 use crate::{
     change_ordering::ChangeOrdering,
@@ -86,39 +84,36 @@ impl<'repo> ChangeList<'repo> {
 
     fn get_conflicting_change_statuses(
         changes: &mut Vec<Change>,
-        conflicting_change_paths: Vec<Vec<u8>>,
+        mut conflicting_change_paths: Vec<Vec<u8>>,
         index: &Index,
     ) -> Result<()> {
-        let conflicts_length = conflicting_change_paths.len();
-
         let conflicts = index
             .conflicts()
             .context("Failed to get merge conflicts from Git index")?;
 
-        let mut conflict_map = HashMap::<Vec<u8>, IndexConflict>::with_capacity(conflicts_length);
-
         for conflict in conflicts {
             let conflict = conflict.context("Failed to get merge conflict from Git index")?;
 
-            let path: Vec<u8>;
+            let conflict_path: &[u8];
             if let Some(ancestor) = &conflict.ancestor {
-                path = ancestor.path.clone()
+                conflict_path = &ancestor.path;
             } else if let Some(our) = &conflict.our {
-                path = our.path.clone();
+                conflict_path = &our.path;
             } else if let Some(their) = &conflict.their {
-                path = their.path.clone();
+                conflict_path = &their.path;
             } else {
                 bail!("Failed to find path for merge conflict in Git index");
             }
 
-            conflict_map.insert(path, conflict);
-        }
+            let index = conflicting_change_paths
+                .iter()
+                .position(|change_path| change_path == conflict_path)
+                .ok_or_else(|| {
+                    let path = String::from_utf8_lossy(conflict_path);
+                    anyhow!("Expected to find conflicting change path for merge conflict in '{path}', but found nothing")
+                })?;
 
-        for path in conflicting_change_paths {
-            let Some(conflict) = conflict_map.get(&path) else {
-                let path = String::from_utf8_lossy(&path);
-                bail!("Expected to find merge conflict in Git index for path '{path}', but found nothing");
-            };
+            let change_path = conflicting_change_paths.remove(index);
 
             use ConflictingStatus::*;
 
@@ -134,9 +129,13 @@ impl<'repo> ChangeList<'repo> {
             };
 
             changes.push(Change {
-                path,
+                path: change_path,
                 status: Status::Conflicting { ours, theirs },
             });
+        }
+
+        if !conflicting_change_paths.is_empty() {
+            bail!("Failed to find Git index entries for all conflicting paths in merge conflict");
         }
 
         Ok(())
