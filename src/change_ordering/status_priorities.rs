@@ -1,8 +1,6 @@
 use std::{cmp::Ordering, collections::HashMap, fmt::Debug};
 
-use git2::Status;
-
-use crate::statuses::{INDEX_STATUSES, WORKTREE_STATUSES};
+use crate::statuses::{Status, CONFLICTED_STATUSES, INDEX_STATUSES, WORKTREE_STATUSES};
 
 pub(super) struct StatusPriorityMap {
     map: HashMap<Status, usize>,
@@ -15,23 +13,30 @@ impl StatusPriorityMap {
         let worktree_base_priority = (1 + status_length) * status_length;
         let conflicted_priority = worktree_base_priority + status_length;
 
-        let mut map = HashMap::<Status, usize>::with_capacity(conflicted_priority + 1);
+        let mut map = HashMap::<Status, usize>::with_capacity(
+            conflicted_priority + CONFLICTED_STATUSES.len(),
+        );
 
         for i in 0..status_length {
             let index_status = INDEX_STATUSES[i];
             let worktree_status = WORKTREE_STATUSES[i];
 
-            map.insert(index_status, i);
-            map.insert(worktree_status, worktree_base_priority + i);
+            map.insert(Status::NonConflicted(index_status), i);
+            map.insert(
+                Status::NonConflicted(worktree_status),
+                worktree_base_priority + i,
+            );
 
             for (j, worktree_status_2) in WORKTREE_STATUSES.into_iter().enumerate() {
                 let combined_status = worktree_status_2 | index_status;
                 let priority = (i + 1) * status_length + j;
-                map.insert(combined_status, priority);
+                map.insert(Status::NonConflicted(combined_status), priority);
             }
         }
 
-        map.insert(Status::CONFLICTED, conflicted_priority);
+        for (i, [ours, theirs]) in CONFLICTED_STATUSES.into_iter().enumerate() {
+            map.insert(Status::Conflicted { ours, theirs }, conflicted_priority + i);
+        }
 
         StatusPriorityMap { map }
     }

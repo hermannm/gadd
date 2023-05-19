@@ -1,9 +1,11 @@
-use anyhow::{Context, Result};
-use git2::{Index, Repository, Status};
+use std::collections::HashMap;
+
+use anyhow::{bail, Context, Result};
+use git2::{Index, IndexConflict, Repository};
 
 use crate::{
     change_ordering::ChangeOrdering,
-    statuses::WORKTREE_STATUSES,
+    statuses::{ConflictedStatus, Status, WORKTREE_STATUSES},
     utils::{bytes_to_path, new_index_entry},
 };
 
@@ -26,7 +28,7 @@ impl<'repo> ChangeList<'repo> {
             .index()
             .context("Failed to get Git index for repository")?;
 
-        let mut changes = ChangeList::get_changes(repository)?;
+        let mut changes = ChangeList::get_changes(repository, &index)?;
 
         let change_ordering = ChangeOrdering::sort_changes_and_save_ordering(&mut changes);
 
@@ -43,29 +45,103 @@ impl<'repo> ChangeList<'repo> {
         Ok(change_list)
     }
 
-    fn get_changes(repository: &Repository) -> Result<Vec<Change>> {
+    fn get_changes(repository: &Repository, index: &Index) -> Result<Vec<Change>> {
         let statuses = repository
             .statuses(None)
             .context("Failed to get change statuses for repository")?;
 
-        let mut changes = Vec::<Change>::with_capacity(statuses.len());
+        let statuses_length = statuses.len();
+        let mut changes = Vec::<Change>::with_capacity(statuses_length);
+        let mut conflicted_change_paths = Vec::<Vec<u8>>::with_capacity(statuses_length);
 
         for status_entry in statuses.iter() {
             let status = status_entry.status();
 
-            if !status.is_ignored() {
+            if status.is_ignored() {
+                continue;
+            }
+
+            let path = status_entry.path_bytes().to_owned();
+
+            if status.is_conflicted() {
+                conflicted_change_paths.push(path);
+            } else {
                 changes.push(Change {
-                    path: status_entry.path_bytes().to_owned(),
-                    status,
+                    path,
+                    status: Status::NonConflicted(status),
                 });
             }
+        }
+
+        if !conflicted_change_paths.is_empty() {
+            ChangeList::add_conflicted_changes(&mut changes, conflicted_change_paths, index)?;
         }
 
         Ok(changes)
     }
 
+    fn add_conflicted_changes(
+        changes: &mut Vec<Change>,
+        conflicted_change_paths: Vec<Vec<u8>>,
+        index: &Index,
+    ) -> Result<()> {
+        let conflicts_length = conflicted_change_paths.len();
+
+        let conflicts = index
+            .conflicts()
+            .context("Failed to get merge conflicts from Git index")?;
+
+        let mut conflict_map = HashMap::<Vec<u8>, IndexConflict>::with_capacity(conflicts_length);
+
+        for conflict in conflicts {
+            let conflict = conflict.context("Failed to get merge conflict from Git index")?;
+
+            let path: Vec<u8>;
+            if let Some(ancestor) = &conflict.ancestor {
+                path = ancestor.path.clone()
+            } else if let Some(our) = &conflict.our {
+                path = our.path.clone();
+            } else if let Some(their) = &conflict.their {
+                path = their.path.clone();
+            } else {
+                bail!("Failed to find path for merge conflict in Git index");
+            }
+
+            conflict_map.insert(path, conflict);
+        }
+
+        for path in conflicted_change_paths {
+            let Some(conflict) = conflict_map.get(&path) else {
+                match std::str::from_utf8(&path) {
+                    Ok(path) => bail!("Expected to find merge conflict in Git index for path '{path}', but found nothing"),
+                    Err(_) => bail!("Expected to find merge conflict in Git index, but found nothing"),
+                }
+            };
+
+            use ConflictedStatus::*;
+
+            let (ours, theirs) = match (&conflict.ancestor, &conflict.our, &conflict.their) {
+                (Some(_), Some(_), Some(_)) => (Unmerged, Unmerged),
+                (Some(_), Some(_), None) => (Unmerged, Deleted),
+                (Some(_), None, Some(_)) => (Deleted, Unmerged),
+                (Some(_), None, None) => (Deleted, Deleted),
+                (None, Some(_), Some(_)) => (Added, Added),
+                (None, Some(_), None) => (Added, Unmerged),
+                (None, None, Some(_)) => (Unmerged, Added),
+                (None, None, None) => bail!("Invalid index merge conflict entry"),
+            };
+
+            changes.push(Change {
+                path,
+                status: Status::Conflicted { ours, theirs },
+            });
+        }
+
+        Ok(())
+    }
+
     pub fn refresh_changes(&mut self) -> Result<()> {
-        self.changes = ChangeList::get_changes(self.repository)?;
+        self.changes = ChangeList::get_changes(self.repository, &self.index)?;
         self.change_ordering.sort_changes(&mut self.changes);
 
         let changes_length = self.changes.len();
@@ -87,7 +163,7 @@ impl<'repo> ChangeList<'repo> {
         let change = &self.changes[self.index_of_selected_change];
         let path = bytes_to_path(&change.path);
 
-        if change.status.is_wt_deleted() {
+        if matches!(change.status, Status::NonConflicted(status) if status.is_wt_deleted()) {
             self.index.remove_path(path).with_context(|| {
                 let path = path.to_string_lossy();
                 format!("Failed to remove deleted file '{path}' from Git index")
@@ -115,7 +191,7 @@ impl<'repo> ChangeList<'repo> {
         let change = &self.changes[self.index_of_selected_change];
         let path = bytes_to_path(&change.path);
 
-        if change.status.is_index_new() {
+        if matches!(change.status, Status::NonConflicted(status) if status.is_index_new()) {
             self.index.remove_path(path).with_context(|| {
                 let path = path.to_string_lossy();
                 format!("Failed to remove '{path}' from Git index")
@@ -182,17 +258,20 @@ impl<'repo> ChangeList<'repo> {
         let mut first_worktree_change_index: Option<usize> = None;
 
         for (i, change) in self.changes.iter().enumerate() {
-            if first_worktree_change_index.is_none()
-                && WORKTREE_STATUSES
-                    .into_iter()
-                    .any(|worktree_status| change.status.intersects(worktree_status))
-            {
-                first_worktree_change_index = Some(i);
-            }
-
-            if change.status.is_conflicted() {
-                self.index_of_selected_change = i;
-                return;
+            match change.status {
+                Status::Conflicted { .. } => {
+                    self.index_of_selected_change = i;
+                    return;
+                }
+                Status::NonConflicted(status) => {
+                    if first_worktree_change_index.is_none()
+                        && WORKTREE_STATUSES
+                            .into_iter()
+                            .any(|worktree_status| status.intersects(worktree_status))
+                    {
+                        first_worktree_change_index = Some(i);
+                    }
+                }
             }
         }
 

@@ -100,7 +100,7 @@ impl FullscreenRenderer<'_> {
     fn list_item_widget_from_change(change: &Change, is_selected: bool) -> ListItem {
         let mut line = Vec::<Span>::new();
 
-        for status_symbol in get_status_symbols(change.status) {
+        for status_symbol in get_status_symbols(&change.status) {
             line.push(match status_symbol {
                 StatusSymbol::Green(symbol) => Span::styled(symbol, GREEN_TEXT),
                 StatusSymbol::Red(symbol) => Span::styled(symbol, RED_TEXT),

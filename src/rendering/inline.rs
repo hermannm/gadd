@@ -12,7 +12,7 @@ use super::status_symbols::{get_status_symbols, StatusSymbol};
 
 pub(crate) fn render_inline(stdout: &mut Stdout, change_list: &ChangeList) -> Result<()> {
     for change in change_list.changes.iter() {
-        for status_symbol in get_status_symbols(change.status) {
+        for status_symbol in get_status_symbols(&change.status) {
             match status_symbol {
                 StatusSymbol::Green(symbol) => {
                     stdout.queue(SetForegroundColor(Color::Green))?;
