@@ -116,10 +116,8 @@ impl<'repo> ChangeList<'repo> {
 
         for path in conflicting_change_paths {
             let Some(conflict) = conflict_map.get(&path) else {
-                match std::str::from_utf8(&path) {
-                    Ok(path) => bail!("Expected to find merge conflict in Git index for path '{path}', but found nothing"),
-                    Err(_) => bail!("Expected to find merge conflict in Git index, but found nothing"),
-                }
+                let path = String::from_utf8_lossy(&path);
+                bail!("Expected to find merge conflict in Git index for path '{path}', but found nothing");
             };
 
             use ConflictingStatus::*;
