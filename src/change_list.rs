@@ -1,5 +1,5 @@
 use anyhow::{anyhow, bail, Context, Result};
-use git2::{Index, Repository, Statuses};
+use git2::{Index, Repository, StatusOptions, Statuses};
 
 use crate::{
     change_ordering::ChangeOrdering,
@@ -26,10 +26,7 @@ impl<'repo> ChangeList<'repo> {
             .index()
             .context("Failed to get Git index for repository")?;
 
-        let statuses = repository
-            .statuses(None)
-            .context("Failed to get change statuses for repository")?;
-
+        let statuses = get_statuses(repository)?;
         let statuses_length = statuses.len();
 
         let mut change_list = ChangeList {
@@ -58,10 +55,6 @@ impl<'repo> ChangeList<'repo> {
 
         for status_entry in statuses.iter() {
             let status = status_entry.status();
-
-            if status.is_ignored() {
-                continue;
-            }
 
             let path = status_entry.path_bytes().to_owned();
 
@@ -143,11 +136,7 @@ impl<'repo> ChangeList<'repo> {
     }
 
     pub fn refresh_changes(&mut self) -> Result<()> {
-        let statuses = self
-            .repository
-            .statuses(None)
-            .context("Failed to get change statuses for repository")?;
-
+        let statuses = get_statuses(self.repository)?;
         self.populate_changes(statuses)?;
         self.ordering.sort_changes(&mut self.changes);
 
@@ -286,4 +275,13 @@ impl<'repo> ChangeList<'repo> {
             self.index_of_selected_change = index;
         }
     }
+}
+
+fn get_statuses(repository: &Repository) -> Result<Statuses> {
+    let mut options = StatusOptions::default();
+    options.include_ignored(false);
+
+    repository
+        .statuses(Some(&mut options))
+        .context("Failed to get change statuses for repository")
 }
