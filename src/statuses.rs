@@ -1,14 +1,14 @@
 #[derive(PartialEq, Eq, Hash, Debug)]
 pub(super) enum Status {
-    NonConflicted(git2::Status),
-    Conflicted {
-        ours: ConflictedStatus,
-        theirs: ConflictedStatus,
+    NonConflicting(git2::Status),
+    Conflicting {
+        ours: ConflictingStatus,
+        theirs: ConflictingStatus,
     },
 }
 
 #[derive(PartialEq, Eq, Hash, Debug)]
-pub(super) enum ConflictedStatus {
+pub(super) enum ConflictingStatus {
     Unmerged,
     Added,
     Deleted,
@@ -32,12 +32,12 @@ pub(super) const WORKTREE_STATUSES: [git2::Status; STATUSES_LENGTH] = [
     git2::Status::WT_NEW,
 ];
 
-pub(super) const CONFLICTED_STATUSES: [[ConflictedStatus; 2]; 7] = [
-    [ConflictedStatus::Unmerged, ConflictedStatus::Unmerged],
-    [ConflictedStatus::Deleted, ConflictedStatus::Unmerged],
-    [ConflictedStatus::Unmerged, ConflictedStatus::Deleted],
-    [ConflictedStatus::Deleted, ConflictedStatus::Deleted],
-    [ConflictedStatus::Added, ConflictedStatus::Unmerged],
-    [ConflictedStatus::Unmerged, ConflictedStatus::Added],
-    [ConflictedStatus::Added, ConflictedStatus::Added],
+pub(super) const CONFLICTING_STATUSES: [[ConflictingStatus; 2]; 7] = [
+    [ConflictingStatus::Unmerged, ConflictingStatus::Unmerged],
+    [ConflictingStatus::Deleted, ConflictingStatus::Unmerged],
+    [ConflictingStatus::Unmerged, ConflictingStatus::Deleted],
+    [ConflictingStatus::Deleted, ConflictingStatus::Deleted],
+    [ConflictingStatus::Added, ConflictingStatus::Unmerged],
+    [ConflictingStatus::Unmerged, ConflictingStatus::Added],
+    [ConflictingStatus::Added, ConflictingStatus::Added],
 ];

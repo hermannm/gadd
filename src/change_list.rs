@@ -5,7 +5,7 @@ use git2::{Index, IndexConflict, Repository};
 
 use crate::{
     change_ordering::ChangeOrdering,
-    statuses::{ConflictedStatus, Status, WORKTREE_STATUSES},
+    statuses::{ConflictingStatus, Status, WORKTREE_STATUSES},
     utils::{bytes_to_path, new_index_entry},
 };
 
@@ -52,7 +52,7 @@ impl<'repo> ChangeList<'repo> {
 
         let statuses_length = statuses.len();
         let mut changes = Vec::<Change>::with_capacity(statuses_length);
-        let mut conflicted_change_paths = Vec::<Vec<u8>>::with_capacity(statuses_length);
+        let mut conflicting_change_paths = Vec::<Vec<u8>>::with_capacity(statuses_length);
 
         for status_entry in statuses.iter() {
             let status = status_entry.status();
@@ -64,28 +64,32 @@ impl<'repo> ChangeList<'repo> {
             let path = status_entry.path_bytes().to_owned();
 
             if status.is_conflicted() {
-                conflicted_change_paths.push(path);
+                conflicting_change_paths.push(path);
             } else {
                 changes.push(Change {
                     path,
-                    status: Status::NonConflicted(status),
+                    status: Status::NonConflicting(status),
                 });
             }
         }
 
-        if !conflicted_change_paths.is_empty() {
-            ChangeList::add_conflicted_changes(&mut changes, conflicted_change_paths, index)?;
+        if !conflicting_change_paths.is_empty() {
+            ChangeList::get_conflicting_change_statuses(
+                &mut changes,
+                conflicting_change_paths,
+                index,
+            )?;
         }
 
         Ok(changes)
     }
 
-    fn add_conflicted_changes(
+    fn get_conflicting_change_statuses(
         changes: &mut Vec<Change>,
-        conflicted_change_paths: Vec<Vec<u8>>,
+        conflicting_change_paths: Vec<Vec<u8>>,
         index: &Index,
     ) -> Result<()> {
-        let conflicts_length = conflicted_change_paths.len();
+        let conflicts_length = conflicting_change_paths.len();
 
         let conflicts = index
             .conflicts()
@@ -110,7 +114,7 @@ impl<'repo> ChangeList<'repo> {
             conflict_map.insert(path, conflict);
         }
 
-        for path in conflicted_change_paths {
+        for path in conflicting_change_paths {
             let Some(conflict) = conflict_map.get(&path) else {
                 match std::str::from_utf8(&path) {
                     Ok(path) => bail!("Expected to find merge conflict in Git index for path '{path}', but found nothing"),
@@ -118,7 +122,7 @@ impl<'repo> ChangeList<'repo> {
                 }
             };
 
-            use ConflictedStatus::*;
+            use ConflictingStatus::*;
 
             let (ours, theirs) = match (&conflict.ancestor, &conflict.our, &conflict.their) {
                 (Some(_), Some(_), Some(_)) => (Unmerged, Unmerged),
@@ -133,7 +137,7 @@ impl<'repo> ChangeList<'repo> {
 
             changes.push(Change {
                 path,
-                status: Status::Conflicted { ours, theirs },
+                status: Status::Conflicting { ours, theirs },
             });
         }
 
@@ -163,7 +167,7 @@ impl<'repo> ChangeList<'repo> {
         let change = &self.changes[self.index_of_selected_change];
         let path = bytes_to_path(&change.path);
 
-        if matches!(change.status, Status::NonConflicted(status) if status.is_wt_deleted()) {
+        if matches!(change.status, Status::NonConflicting(status) if status.is_wt_deleted()) {
             self.index.remove_path(path).with_context(|| {
                 let path = path.to_string_lossy();
                 format!("Failed to remove deleted file '{path}' from Git index")
@@ -191,7 +195,7 @@ impl<'repo> ChangeList<'repo> {
         let change = &self.changes[self.index_of_selected_change];
         let path = bytes_to_path(&change.path);
 
-        if matches!(change.status, Status::NonConflicted(status) if status.is_index_new()) {
+        if matches!(change.status, Status::NonConflicting(status) if status.is_index_new()) {
             self.index.remove_path(path).with_context(|| {
                 let path = path.to_string_lossy();
                 format!("Failed to remove '{path}' from Git index")
@@ -259,11 +263,11 @@ impl<'repo> ChangeList<'repo> {
 
         for (i, change) in self.changes.iter().enumerate() {
             match change.status {
-                Status::Conflicted { .. } => {
+                Status::Conflicting { .. } => {
                     self.index_of_selected_change = i;
                     return;
                 }
-                Status::NonConflicted(status) => {
+                Status::NonConflicting(status) => {
                     if first_worktree_change_index.is_none()
                         && WORKTREE_STATUSES
                             .into_iter()

@@ -1,6 +1,8 @@
 use std::{cmp::Ordering, collections::HashMap, fmt::Debug};
 
-use crate::statuses::{Status, CONFLICTED_STATUSES, INDEX_STATUSES, WORKTREE_STATUSES};
+use crate::statuses::{
+    Status, CONFLICTING_STATUSES, INDEX_STATUSES, STATUSES_LENGTH, WORKTREE_STATUSES,
+};
 
 pub(super) struct StatusPriorityMap {
     map: HashMap<Status, usize>,
@@ -8,34 +10,35 @@ pub(super) struct StatusPriorityMap {
 
 impl StatusPriorityMap {
     pub fn new() -> StatusPriorityMap {
-        let status_length = INDEX_STATUSES.len();
-
-        let worktree_base_priority = (1 + status_length) * status_length;
-        let conflicted_priority = worktree_base_priority + status_length;
+        let worktree_base_priority = (1 + STATUSES_LENGTH) * STATUSES_LENGTH;
+        let conflicting_priority = worktree_base_priority + STATUSES_LENGTH;
 
         let mut map = HashMap::<Status, usize>::with_capacity(
-            conflicted_priority + CONFLICTED_STATUSES.len(),
+            conflicting_priority + CONFLICTING_STATUSES.len(),
         );
 
-        for i in 0..status_length {
+        for i in 0..STATUSES_LENGTH {
             let index_status = INDEX_STATUSES[i];
             let worktree_status = WORKTREE_STATUSES[i];
 
-            map.insert(Status::NonConflicted(index_status), i);
+            map.insert(Status::NonConflicting(index_status), i);
             map.insert(
-                Status::NonConflicted(worktree_status),
+                Status::NonConflicting(worktree_status),
                 worktree_base_priority + i,
             );
 
             for (j, worktree_status_2) in WORKTREE_STATUSES.into_iter().enumerate() {
                 let combined_status = worktree_status_2 | index_status;
-                let priority = (i + 1) * status_length + j;
-                map.insert(Status::NonConflicted(combined_status), priority);
+                let priority = (i + 1) * STATUSES_LENGTH + j;
+                map.insert(Status::NonConflicting(combined_status), priority);
             }
         }
 
-        for (i, [ours, theirs]) in CONFLICTED_STATUSES.into_iter().enumerate() {
-            map.insert(Status::Conflicted { ours, theirs }, conflicted_priority + i);
+        for (i, [ours, theirs]) in CONFLICTING_STATUSES.into_iter().enumerate() {
+            map.insert(
+                Status::Conflicting { ours, theirs },
+                conflicting_priority + i,
+            );
         }
 
         StatusPriorityMap { map }

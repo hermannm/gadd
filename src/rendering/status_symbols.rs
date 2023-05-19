@@ -1,5 +1,5 @@
 use crate::statuses::{
-    ConflictedStatus, Status, INDEX_STATUSES, STATUSES_LENGTH, WORKTREE_STATUSES,
+    ConflictingStatus, Status, INDEX_STATUSES, STATUSES_LENGTH, WORKTREE_STATUSES,
 };
 
 pub(super) enum StatusSymbol {
@@ -12,8 +12,8 @@ pub(super) fn get_status_symbols(status: &Status) -> [StatusSymbol; 2] {
     use StatusSymbol::*;
 
     match status {
-        Status::NonConflicted(git2::Status::WT_NEW) => [Red("?"), Red("?")],
-        Status::NonConflicted(status) => {
+        Status::NonConflicting(git2::Status::WT_NEW) => [Red("?"), Red("?")],
+        Status::NonConflicting(status) => {
             const STATUS_SYMBOL_OPTIONS: [&str; STATUSES_LENGTH] = ["M", "T", "R", "D", "A"];
 
             let mut status_symbols = [Space, Space];
@@ -34,10 +34,10 @@ pub(super) fn get_status_symbols(status: &Status) -> [StatusSymbol; 2] {
 
             status_symbols
         }
-        Status::Conflicted { ours, theirs } => [ours, theirs].map(|status| match status {
-            ConflictedStatus::Unmerged => Red("U"),
-            ConflictedStatus::Added => Red("A"),
-            ConflictedStatus::Deleted => Red("D"),
+        Status::Conflicting { ours, theirs } => [ours, theirs].map(|status| match status {
+            ConflictingStatus::Unmerged => Red("U"),
+            ConflictingStatus::Added => Red("A"),
+            ConflictingStatus::Deleted => Red("D"),
         }),
     }
 }
