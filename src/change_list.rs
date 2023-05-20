@@ -1,5 +1,7 @@
+use std::iter;
+
 use anyhow::{anyhow, bail, Context, Result};
-use git2::{Index, Repository, StatusOptions, Statuses};
+use git2::{Index, IndexAddOption, Repository, StatusOptions, Statuses};
 
 use crate::{
     change_ordering::ChangeOrdering,
@@ -159,16 +161,39 @@ impl<'repo> ChangeList<'repo> {
         let change = &self.changes[self.index_of_selected_change];
         let path = bytes_to_path(&change.path);
 
-        if matches!(change.status, Status::NonConflicting(status) if status.is_wt_deleted()) {
-            self.index.remove_path(path).with_context(|| {
-                let path = path.to_string_lossy();
-                format!("Failed to remove deleted file '{path}' from Git index")
-            })?;
+        let is_deleted =
+            matches!(change.status, Status::NonConflicting(status) if status.is_wt_deleted());
+
+        if path.is_file() {
+            if is_deleted {
+                self.index.remove_path(path).with_context(|| {
+                    let path = path.to_string_lossy();
+                    format!("Failed to remove deleted file '{path}' from Git index")
+                })?;
+            } else {
+                self.index.add_path(path).with_context(|| {
+                    let path = path.to_string_lossy();
+                    format!("Failed to add '{path}' to Git index")
+                })?;
+            }
         } else {
-            self.index.add_path(path).with_context(|| {
-                let path = path.to_string_lossy();
-                format!("Failed to add '{path}' to Git index")
-            })?;
+            let mut pathspec = change.path.clone();
+            pathspec.push(b'*'); // Matches on everything under the given directory
+            let pathspecs = iter::once(pathspec);
+
+            if is_deleted {
+                self.index.remove_all(pathspecs, None).with_context(|| {
+                    let path = path.to_string_lossy();
+                    format!("Failed to remove deleted directory '{path}' from Git index")
+                })?;
+            } else {
+                self.index
+                    .add_all(pathspecs, IndexAddOption::default(), None)
+                    .with_context(|| {
+                        let path = path.to_string_lossy();
+                        format!("Failed to add directory '{path}' to Git index")
+                    })?;
+            }
         }
 
         self.index.write().context("Failed to write to Git index")?;
