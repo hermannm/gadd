@@ -280,6 +280,7 @@ impl<'repo> ChangeList<'repo> {
 fn get_statuses(repository: &Repository) -> Result<Statuses> {
     let mut options = StatusOptions::default();
     options.include_ignored(false);
+    options.include_untracked(true);
 
     repository
         .statuses(Some(&mut options))
