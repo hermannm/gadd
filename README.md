@@ -4,8 +4,7 @@ Command-line utility for staging changes to Git (alternative to git-add's intera
 
 ## Screenshots
 
-The Git staging area in `gadd`:
-
+The Git staging area in `gadd`:<br />
 ![Screenshot of the gadd terminal application](https://github.com/hermannm/gadd/blob/assets/gadd-staging-area.png?raw=true)
 
 ## Installation
