@@ -1,3 +1,5 @@
+![Ferris the Crab, mascot of the Rust programming language, holding Git logo](https://github.com/hermannm/gadd/blob/assets/ferris-the-git-crab.png?raw=true)
+
 # gadd
 
 Command-line utility for staging changes to Git (alternative to git-add's interactive mode). Written in Rust, using [git2-rs](https://github.com/rust-lang/git2-rs) to interact with Git, and [ratatui](https://github.com/tui-rs-revival/ratatui) for the terminal UI.
@@ -25,3 +27,7 @@ The Git staging area in `gadd`:
     - Click "New", and enter the path to the folder where you saved `gadd.exe`
 - Restart your terminal
 - You should now be able to type `gadd` inside a Git repo in the terminal to manage your changes!
+
+## Credits
+
+- Logo: Git logo adapted from [Jason Long](https://git-scm.com/downloads/logos) (licensed under [Creative Commons BY 3.0](https://creativecommons.org/licenses/by/3.0/))
