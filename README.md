@@ -1,4 +1,4 @@
-<img alt="Ferris the Crab, mascot of the Rust programming language, holding Git logo" width="106" height="75" src="https://github.com/hermannm/gadd/blob/assets/ferris-the-git-crab.png?raw=true">
+<img alt="Ferris the Crab, mascot of the Rust programming language, holding Git logo" width="106" height="75" src="https://github.com/hermannm/gadd/blob/assets/ferris-the-git-crab.png?raw=true" />
 
 # gadd
 
