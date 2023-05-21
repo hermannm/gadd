@@ -37,4 +37,4 @@ The Git staging area in `gadd`:
 
 ## Credits
 
-- Git logo adapted from [Jason Long](https://git-scm.com/downloads/logos) (licensed under [Creative Commons BY 3.0](https://creativecommons.org/licenses/by/3.0/))
+- Git logo adapted from [Jason Long](https://git-scm.com/downloads/logos) (licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/))
