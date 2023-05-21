@@ -1,4 +1,4 @@
-![Ferris the Crab, mascot of the Rust programming language, holding Git logo](https://github.com/hermannm/gadd/blob/assets/ferris-the-git-crab.png?raw=true)
+<img alt="Ferris the Crab, mascot of the Rust programming language, holding Git logo" width="106" height="75" src="https://github.com/hermannm/gadd/blob/assets/ferris-the-git-crab.png?raw=true">
 
 # gadd
 
@@ -30,4 +30,4 @@ The Git staging area in `gadd`:
 
 ## Credits
 
-- Logo: Git logo adapted from [Jason Long](https://git-scm.com/downloads/logos) (licensed under [Creative Commons BY 3.0](https://creativecommons.org/licenses/by/3.0/))
+- Git logo adapted from [Jason Long](https://git-scm.com/downloads/logos) (licensed under [Creative Commons BY 3.0](https://creativecommons.org/licenses/by/3.0/))
