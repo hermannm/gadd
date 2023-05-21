@@ -12,6 +12,13 @@ The Git staging area in `gadd`:
 
 ## Installation
 
+### Through Cargo (Rust package manager)
+
+- Run `cargo install gadd`
+- You should now be able to type `gadd` inside a Git repo in the terminal to manage your changes!
+
+### Manually
+
 - Go to the [Releases page](https://github.com/hermannm/gadd/releases)
 - Download the appropriate binary for your OS and architecture under Assets
   - On Linux/MacOS: Save the file as `gadd`
