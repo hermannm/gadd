@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use crossterm::event::{self, Event, KeyCode, KeyModifiers};
+use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 
 use crate::{change_list::ChangeList, rendering::fullscreen::FullscreenRenderer};
 
@@ -14,38 +14,43 @@ pub(crate) fn user_input_event_loop(
     loop {
         let event = event::read().context("Failed to read user input")?;
 
-        if let Event::Key(event) = event {
-            use KeyCode::*;
+        let Event::Key(event) = event else {
+            continue;
+        };
 
-            match (event.code, event.modifiers) {
-                (Enter, _) | (Esc, _) | (Char('c'), KeyModifiers::CONTROL) => {
-                    break;
-                }
-                (Char(' '), _) => {
-                    change_list
-                        .stage_selected_change()
-                        .context("Failed to stage selected change")?;
+        if event.kind != KeyEventKind::Press {
+            continue;
+        }
 
-                    renderer.render(change_list)?;
-                }
-                (Char('r'), _) => {
-                    change_list
-                        .unstage_selected_change()
-                        .context("Failed to unstage selected change")?;
+        use KeyCode::*;
+        match (event.code, event.modifiers) {
+            (Enter, _) | (Esc, _) | (Char('c'), KeyModifiers::CONTROL) => {
+                break;
+            }
+            (Char(' '), _) => {
+                change_list
+                    .stage_selected_change()
+                    .context("Failed to stage selected change")?;
 
-                    renderer.render(change_list)?;
-                }
-                (Up, _) => {
-                    change_list.select_previous_change();
-                    renderer.render(change_list)?;
-                }
-                (Down, _) => {
-                    change_list.select_next_change();
-                    renderer.render(change_list)?;
-                }
-                _ => {
-                    continue;
-                }
+                renderer.render(change_list)?;
+            }
+            (Char('r'), _) => {
+                change_list
+                    .unstage_selected_change()
+                    .context("Failed to unstage selected change")?;
+
+                renderer.render(change_list)?;
+            }
+            (Up, _) => {
+                change_list.select_previous_change();
+                renderer.render(change_list)?;
+            }
+            (Down, _) => {
+                change_list.select_next_change();
+                renderer.render(change_list)?;
+            }
+            _ => {
+                continue;
             }
         }
     }
