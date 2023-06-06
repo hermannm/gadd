@@ -1,10 +1,9 @@
 use anyhow::{Context, Result};
+use change_list::ChangeList;
 use git2::Repository;
 use input_handling::user_input_event_loop;
 use rendering::{fullscreen::FullscreenRenderer, inline::render_inline};
 use utils::get_raw_stdout;
-
-use crate::change_list::ChangeList;
 
 mod change_list;
 mod change_ordering;
@@ -32,7 +31,7 @@ fn main() -> Result<()> {
         let mut renderer = FullscreenRenderer::new(&mut stdout)?;
         renderer.render(&change_list)?;
         user_input_event_loop(&mut change_list, &mut renderer)?;
-    } // drops renderer, exiting fullscreen
+    } // Drops renderer, exiting fullscreen
 
     change_list
         .refresh_changes()

@@ -1,7 +1,5 @@
-use std::iter;
-
 use anyhow::{anyhow, bail, Context, Result};
-use git2::{Index, IndexAddOption, Repository, StatusOptions, Statuses};
+use git2::{Index, IndexAddOption, Repository, StatusOptions, Statuses, Tree};
 
 use crate::{
     change_ordering::ChangeOrdering,
@@ -15,11 +13,6 @@ pub(super) struct ChangeList<'repo> {
     ordering: ChangeOrdering,
     repository: &'repo Repository,
     index: Index,
-}
-
-pub(super) struct Change {
-    pub path: Vec<u8>,
-    pub status: Status,
 }
 
 impl<'repo> ChangeList<'repo> {
@@ -159,42 +152,20 @@ impl<'repo> ChangeList<'repo> {
         }
 
         let change = &self.changes[self.index_of_selected_change];
-        let path = bytes_to_path(&change.path);
+        change.stage(&mut self.index)?;
 
-        let is_deleted =
-            matches!(change.status, Status::NonConflicting(status) if status.is_wt_deleted());
+        self.index.write().context("Failed to write to Git index")?;
 
-        if path.is_file() {
-            if is_deleted {
-                self.index.remove_path(path).with_context(|| {
-                    let path = path.to_string_lossy();
-                    format!("Failed to remove deleted file '{path}' from Git index")
-                })?;
-            } else {
-                self.index.add_path(path).with_context(|| {
-                    let path = path.to_string_lossy();
-                    format!("Failed to add '{path}' to Git index")
-                })?;
-            }
-        } else {
-            let mut pathspec = change.path.clone();
-            pathspec.push(b'*'); // Matches on everything under the given directory
-            let pathspecs = iter::once(pathspec);
+        self.refresh_changes()
+            .context("Failed to refresh changes after staging")?;
 
-            if is_deleted {
-                self.index.remove_all(pathspecs, None).with_context(|| {
-                    let path = path.to_string_lossy();
-                    format!("Failed to remove deleted directory '{path}' from Git index")
-                })?;
-            } else {
-                self.index
-                    .add_all(pathspecs, IndexAddOption::default(), None)
-                    .with_context(|| {
-                        let path = path.to_string_lossy();
-                        format!("Failed to add directory '{path}' to Git index")
-                    })?;
-            }
-        }
+        Ok(())
+    }
+
+    pub fn stage_all_changes(&mut self) -> Result<()> {
+        self.index
+            .add_all(["*"], IndexAddOption::DEFAULT, None)
+            .context("Failed to add all changes to Git index")?;
 
         self.index.write().context("Failed to write to Git index")?;
 
@@ -209,44 +180,24 @@ impl<'repo> ChangeList<'repo> {
             return Ok(());
         }
 
+        let repository_head_tree = get_repository_head_tree(self.repository)?;
+
         let change = &self.changes[self.index_of_selected_change];
-        let path = bytes_to_path(&change.path);
+        change.unstage(&mut self.index, &repository_head_tree)?;
 
-        if matches!(change.status, Status::NonConflicting(status) if status.is_index_new()) {
-            self.index.remove_path(path).with_context(|| {
-                let path = path.to_string_lossy();
-                format!("Failed to remove '{path}' from Git index")
-            })?;
-        } else {
-            // Unstaging changes to a previously added file involves:
-            // 1. Getting the "tree entry" for the file in the HEAD tree of the repository
-            //    (i.e. the current state of the file)
-            // 2. Creating a new "index entry" from that tree entry and adding it to the Git index
+        self.index.write().context("Failed to write to Git index")?;
 
-            let head = self
-                .repository
-                .head()
-                .context("Failed to get HEAD reference from repository")?;
+        self.refresh_changes()
+            .context("Failed to refresh changes after unstaging")?;
 
-            let tree = head
-                .peel_to_tree()
-                .context("Failed to get file tree from HEAD reference in repository")?;
+        Ok(())
+    }
 
-            let tree_entry = tree.get_path(path).with_context(|| {
-                let path = path.to_string_lossy();
-                format!("Failed to get tree entry for '{path}' from HEAD tree in repository")
-            })?;
+    pub fn unstage_all_changes(&mut self) -> Result<()> {
+        let repository_head_tree = get_repository_head_tree(self.repository)?;
 
-            let index_entry = new_index_entry(
-                tree_entry.id(),
-                tree_entry.filemode() as u32,
-                change.path.clone(),
-            );
-
-            self.index.add(&index_entry).with_context(|| {
-                let path = path.to_string_lossy();
-                format!("Failed to restore '{path}' from Git index to HEAD version")
-            })?;
+        for change in &self.changes {
+            change.unstage(&mut self.index, &repository_head_tree)?;
         }
 
         self.index.write().context("Failed to write to Git index")?;
@@ -302,6 +253,87 @@ impl<'repo> ChangeList<'repo> {
     }
 }
 
+pub(super) struct Change {
+    pub path: Vec<u8>,
+    pub status: Status,
+}
+
+impl Change {
+    pub fn stage(&self, index: &mut Index) -> Result<()> {
+        let path = bytes_to_path(&self.path);
+
+        let is_deleted =
+            matches!(self.status, Status::NonConflicting(status) if status.is_wt_deleted());
+
+        if path.is_file() {
+            if is_deleted {
+                index.remove_path(path).with_context(|| {
+                    let path = path.to_string_lossy();
+                    format!("Failed to remove deleted file '{path}' from Git index")
+                })?;
+            } else {
+                index.add_path(path).with_context(|| {
+                    let path = path.to_string_lossy();
+                    format!("Failed to add '{path}' to Git index")
+                })?;
+            }
+        } else {
+            let mut pathspec = self.path.clone();
+            pathspec.push(b'*'); // Matches on everything under the given directory
+
+            if is_deleted {
+                index.remove_all([pathspec], None).with_context(|| {
+                    let path = path.to_string_lossy();
+                    format!("Failed to remove deleted directory '{path}' from Git index")
+                })?;
+            } else {
+                index
+                    .add_all([pathspec], IndexAddOption::default(), None)
+                    .with_context(|| {
+                        let path = path.to_string_lossy();
+                        format!("Failed to add directory '{path}' to Git index")
+                    })?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn unstage(&self, index: &mut Index, repository_head_tree: &Tree) -> Result<()> {
+        let path = bytes_to_path(&self.path);
+
+        if matches!(self.status, Status::NonConflicting(status) if status.is_index_new()) {
+            index.remove_path(path).with_context(|| {
+                let path = path.to_string_lossy();
+                format!("Failed to remove '{path}' from Git index")
+            })?;
+        } else {
+            // Unstaging changes to a previously added file involves:
+            // 1. Getting the "tree entry" for the file in the HEAD tree of the repository
+            //    (i.e. the current state of the file)
+            // 2. Creating a new "index entry" from that tree entry and adding it to the Git index
+
+            let tree_entry = repository_head_tree.get_path(path).with_context(|| {
+                let path = path.to_string_lossy();
+                format!("Failed to get tree entry for '{path}' from HEAD tree in repository")
+            })?;
+
+            let index_entry = new_index_entry(
+                tree_entry.id(),
+                tree_entry.filemode() as u32,
+                self.path.clone(),
+            );
+
+            index.add(&index_entry).with_context(|| {
+                let path = path.to_string_lossy();
+                format!("Failed to restore '{path}' from Git index to HEAD version")
+            })?;
+        }
+
+        Ok(())
+    }
+}
+
 fn get_statuses(repository: &Repository) -> Result<Statuses> {
     let mut options = StatusOptions::default();
     options.include_ignored(false);
@@ -310,4 +342,16 @@ fn get_statuses(repository: &Repository) -> Result<Statuses> {
     repository
         .statuses(Some(&mut options))
         .context("Failed to get change statuses for repository")
+}
+
+fn get_repository_head_tree(repository: &Repository) -> Result<Tree> {
+    let head = repository
+        .head()
+        .context("Failed to get HEAD reference from repository")?;
+
+    let tree = head
+        .peel_to_tree()
+        .context("Failed to get file tree from HEAD reference in repository")?;
+
+    Ok(tree)
 }

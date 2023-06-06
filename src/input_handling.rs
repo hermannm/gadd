@@ -27,6 +27,14 @@ pub(crate) fn user_input_event_loop(
             (Enter, _) | (Esc, _) | (Char('c'), KeyModifiers::CONTROL) => {
                 break;
             }
+            (Up, _) => {
+                change_list.select_previous_change();
+                renderer.render(change_list)?;
+            }
+            (Down, _) => {
+                change_list.select_next_change();
+                renderer.render(change_list)?;
+            }
             (Char(' '), _) => {
                 change_list
                     .stage_selected_change()
@@ -41,12 +49,18 @@ pub(crate) fn user_input_event_loop(
 
                 renderer.render(change_list)?;
             }
-            (Up, _) => {
-                change_list.select_previous_change();
+            (Char('a'), _) => {
+                change_list
+                    .stage_all_changes()
+                    .context("Failed to stage all changes")?;
+
                 renderer.render(change_list)?;
             }
-            (Down, _) => {
-                change_list.select_next_change();
+            (Char('u'), _) => {
+                change_list
+                    .unstage_all_changes()
+                    .context("Failed to stage all changes")?;
+
                 renderer.render(change_list)?;
             }
             _ => {
