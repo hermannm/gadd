@@ -6,7 +6,7 @@ use crossterm::{
     QueueableCommand,
 };
 
-use crate::{change_list::ChangeList, Stdout};
+use crate::{changes::ChangeList, Stdout};
 
 use super::status_symbols::{get_status_symbols, StatusSymbol};
 

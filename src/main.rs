@@ -1,18 +1,15 @@
+use std::fs::File;
+
 use anyhow::{Context, Result};
-use change_list::ChangeList;
+use changes::ChangeList;
 use git2::Repository;
 use input_handling::user_input_event_loop;
-use rendering::{fullscreen::FullscreenRenderer, inline::render_inline};
-use utils::get_raw_stdout;
+use rendering::{render_inline, FullscreenRenderer};
 
-mod change_list;
-mod change_ordering;
+mod changes;
 mod input_handling;
 mod rendering;
 mod statuses;
-mod utils;
-
-type Stdout = std::fs::File;
 
 fn main() -> Result<()> {
     let repository =
@@ -40,4 +37,23 @@ fn main() -> Result<()> {
     render_inline(&mut stdout, &change_list).context("Failed to render changes on exit")?;
 
     Ok(())
+}
+
+type Stdout = File;
+
+#[cfg(unix)]
+fn get_raw_stdout() -> Stdout {
+    use std::os::unix::io::FromRawFd;
+
+    const STDOUT_FILE_DESCRIPTOR: i32 = 1;
+    unsafe { File::from_raw_fd(STDOUT_FILE_DESCRIPTOR) }
+}
+
+#[cfg(windows)]
+fn get_raw_stdout() -> Stdout {
+    use kernel32::GetStdHandle;
+    use std::os::windows::io::FromRawHandle;
+    use winapi::um::winbase::STD_OUTPUT_HANDLE;
+
+    unsafe { File::from_raw_handle(GetStdHandle(STD_OUTPUT_HANDLE)) }
 }

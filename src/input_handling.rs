@@ -1,7 +1,7 @@
 use anyhow::{Context, Result};
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 
-use crate::{change_list::ChangeList, rendering::fullscreen::FullscreenRenderer};
+use crate::{changes::ChangeList, rendering::FullscreenRenderer};
 
 pub(crate) fn user_input_event_loop(
     change_list: &mut ChangeList,

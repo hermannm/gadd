@@ -1,20 +1,11 @@
-use std::{
-    io::Write,
-    process::{Command, Stdio},
-};
-
 use anyhow::{anyhow, bail, Context, Result};
-use arboard::Clipboard;
 use git2::{Index, IndexAddOption, Repository, StatusOptions, Statuses, Tree};
-use wsl::is_wsl;
 
-use crate::{
-    change_ordering::ChangeOrdering,
-    statuses::{ConflictingStatus, Status, WORKTREE_STATUSES},
-    utils::{bytes_to_path, new_index_entry},
-};
+use crate::statuses::{ConflictingStatus, Status, WORKTREE_STATUSES};
 
-pub(super) struct ChangeList<'repo> {
+use super::{change_ordering::ChangeOrdering, Change};
+
+pub(crate) struct ChangeList<'repo> {
     pub changes: Vec<Change>,
     pub index_of_selected_change: usize,
     ordering: ChangeOrdering,
@@ -269,117 +260,6 @@ impl<'repo> ChangeList<'repo> {
         if let Some(index) = first_worktree_change_index {
             self.index_of_selected_change = index;
         }
-    }
-}
-
-pub(super) struct Change {
-    pub path: Vec<u8>,
-    pub status: Status,
-}
-
-impl Change {
-    pub fn stage(&self, index: &mut Index) -> Result<()> {
-        let path = bytes_to_path(&self.path);
-
-        let is_deleted =
-            matches!(self.status, Status::NonConflicting(status) if status.is_wt_deleted());
-
-        if path.is_file() {
-            if is_deleted {
-                index.remove_path(path).with_context(|| {
-                    let path = path.to_string_lossy();
-                    format!("Failed to remove deleted file '{path}' from Git index")
-                })?;
-            } else {
-                index.add_path(path).with_context(|| {
-                    let path = path.to_string_lossy();
-                    format!("Failed to add '{path}' to Git index")
-                })?;
-            }
-        } else {
-            let mut pathspec = self.path.clone();
-            pathspec.push(b'*'); // Matches on everything under the given directory
-
-            if is_deleted {
-                index.remove_all([pathspec], None).with_context(|| {
-                    let path = path.to_string_lossy();
-                    format!("Failed to remove deleted directory '{path}' from Git index")
-                })?;
-            } else {
-                index
-                    .add_all([pathspec], IndexAddOption::default(), None)
-                    .with_context(|| {
-                        let path = path.to_string_lossy();
-                        format!("Failed to add directory '{path}' to Git index")
-                    })?;
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn unstage(&self, index: &mut Index, repository_head_tree: &Tree) -> Result<()> {
-        let path = bytes_to_path(&self.path);
-
-        if matches!(self.status, Status::NonConflicting(status) if status.is_index_new()) {
-            index.remove_path(path).with_context(|| {
-                let path = path.to_string_lossy();
-                format!("Failed to remove '{path}' from Git index")
-            })?;
-        } else {
-            // Unstaging changes to a previously added file involves:
-            // 1. Getting the "tree entry" for the file in the HEAD tree of the repository
-            //    (i.e. the current state of the file)
-            // 2. Creating a new "index entry" from that tree entry and adding it to the Git index
-
-            let tree_entry = repository_head_tree.get_path(path).with_context(|| {
-                let path = path.to_string_lossy();
-                format!("Failed to get tree entry for '{path}' from HEAD tree in repository")
-            })?;
-
-            let index_entry = new_index_entry(
-                tree_entry.id(),
-                tree_entry.filemode() as u32,
-                self.path.clone(),
-            );
-
-            index.add(&index_entry).with_context(|| {
-                let path = path.to_string_lossy();
-                format!("Failed to restore '{path}' from Git index to HEAD version")
-            })?;
-        }
-
-        Ok(())
-    }
-
-    pub fn copy_path_to_clipboard(&self) -> Result<()> {
-        if is_wsl() {
-            let mut clip_exe = Command::new("clip.exe")
-                .stdin(Stdio::piped())
-                .spawn()
-                .context("Failed to launch clip.exe")?;
-
-            let mut stdin = clip_exe
-                .stdin
-                .take()
-                .context("Failed to get standard input handle from clip.exe")?;
-
-            stdin
-                .write_all(&self.path)
-                .context("Failed to write to standard input of clip.exe")?;
-        } else {
-            let mut clipboard = Clipboard::new().context("Failed to access clipboard")?;
-
-            let path = std::str::from_utf8(&self.path).context(
-                "Selected path is non-UTF8, not supported by this clipboard implementation",
-            )?;
-
-            clipboard
-                .set_text(path)
-                .context("Failed to set text of clipboard")?;
-        }
-
-        Ok(())
     }
 }
 
