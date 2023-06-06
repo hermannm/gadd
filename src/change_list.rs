@@ -1,5 +1,12 @@
+use std::{
+    io::Write,
+    process::{Command, Stdio},
+};
+
 use anyhow::{anyhow, bail, Context, Result};
+use arboard::Clipboard;
 use git2::{Index, IndexAddOption, Repository, StatusOptions, Statuses, Tree};
+use wsl::is_wsl;
 
 use crate::{
     change_ordering::ChangeOrdering,
@@ -180,9 +187,10 @@ impl<'repo> ChangeList<'repo> {
             return Ok(());
         }
 
+        let change = &self.changes[self.index_of_selected_change];
+
         let repository_head_tree = get_repository_head_tree(self.repository)?;
 
-        let change = &self.changes[self.index_of_selected_change];
         change.unstage(&mut self.index, &repository_head_tree)?;
 
         self.index.write().context("Failed to write to Git index")?;
@@ -204,6 +212,17 @@ impl<'repo> ChangeList<'repo> {
 
         self.refresh_changes()
             .context("Failed to refresh changes after unstaging")?;
+
+        Ok(())
+    }
+
+    pub fn copy_path_of_selected_change(&self) -> Result<()> {
+        if self.changes.is_empty() {
+            return Ok(());
+        }
+
+        let change = &self.changes[self.index_of_selected_change];
+        change.copy_path_to_clipboard()?;
 
         Ok(())
     }
@@ -328,6 +347,36 @@ impl Change {
                 let path = path.to_string_lossy();
                 format!("Failed to restore '{path}' from Git index to HEAD version")
             })?;
+        }
+
+        Ok(())
+    }
+
+    pub fn copy_path_to_clipboard(&self) -> Result<()> {
+        if is_wsl() {
+            let mut clip_exe = Command::new("clip.exe")
+                .stdin(Stdio::piped())
+                .spawn()
+                .context("Failed to launch clip.exe")?;
+
+            let mut stdin = clip_exe
+                .stdin
+                .take()
+                .context("Failed to get standard input handle from clip.exe")?;
+
+            stdin
+                .write_all(&self.path)
+                .context("Failed to write to standard input of clip.exe")?;
+        } else {
+            let mut clipboard = Clipboard::new().context("Failed to access clipboard")?;
+
+            let path = std::str::from_utf8(&self.path).context(
+                "Selected path is non-UTF8, not supported by this clipboard implementation",
+            )?;
+
+            clipboard
+                .set_text(path)
+                .context("Failed to set text of clipboard")?;
         }
 
         Ok(())

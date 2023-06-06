@@ -63,6 +63,11 @@ pub(crate) fn user_input_event_loop(
 
                 renderer.render(change_list)?;
             }
+            (Char('c'), _) => {
+                change_list
+                    .copy_path_of_selected_change()
+                    .context("Failed to copy path of selected change")?;
+            }
             _ => {
                 continue;
             }
