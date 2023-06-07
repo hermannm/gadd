@@ -20,8 +20,8 @@ use super::status_symbols::{get_status_symbols, StatusSymbol};
 
 const INPUT_CONTROLS: [[&str; 2]; 6] = [
     ["[enter]", "done"],
-    ["[space]", "stage change"],
-    ["[r]", "unstage change"],
+    ["[space]", "stage"],
+    ["[r]", "unstage"],
     ["[a]", "stage all"],
     ["[u]", "unstage all"],
     ["[c]", "copy path"],
