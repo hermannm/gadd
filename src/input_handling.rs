@@ -59,7 +59,7 @@ pub(crate) fn user_input_event_loop(
             (Char('u'), _) => {
                 change_list
                     .unstage_all_changes()
-                    .context("Failed to stage all changes")?;
+                    .context("Failed to unstage all changes")?;
 
                 renderer.render(change_list)?;
             }
