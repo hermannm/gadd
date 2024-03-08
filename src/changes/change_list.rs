@@ -207,17 +207,6 @@ impl<'repo> ChangeList<'repo> {
         Ok(())
     }
 
-    pub fn copy_path_of_selected_change(&self) -> Result<()> {
-        if self.changes.is_empty() {
-            return Ok(());
-        }
-
-        let change = &self.changes[self.index_of_selected_change];
-        change.copy_path_to_clipboard()?;
-
-        Ok(())
-    }
-
     pub fn select_next_change(&mut self) {
         let changes_length = self.changes.len();
 

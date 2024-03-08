@@ -1,3 +1,5 @@
+use std::process::Command;
+
 use anyhow::{Context, Result};
 use crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 
@@ -24,9 +26,6 @@ pub(crate) fn user_input_event_loop(
 
         use KeyCode::*;
         match (event.code, event.modifiers) {
-            (Enter, _) | (Esc, _) | (Char('c'), KeyModifiers::CONTROL) => {
-                break;
-            }
             (Up, _) => {
                 change_list.select_previous_change();
                 renderer.render(change_list)?;
@@ -63,10 +62,15 @@ pub(crate) fn user_input_event_loop(
 
                 renderer.render(change_list)?;
             }
-            (Char('c'), _) => {
-                change_list
-                    .copy_path_of_selected_change()
-                    .context("Failed to copy path of selected change")?;
+            (Enter, _) => {
+                Command::new("git")
+                    .arg("commit")
+                    .status()
+                    .context("Failed to run 'git commit'")?;
+                break;
+            }
+            (Esc, _) | (Char('c'), KeyModifiers::CONTROL) => {
+                break;
             }
             _ => {
                 continue;

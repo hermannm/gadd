@@ -19,12 +19,12 @@ use crate::{
 use super::status_symbols::{get_status_symbols, StatusSymbol};
 
 const INPUT_CONTROLS: [[&str; 2]; 6] = [
-    ["[enter]", "done"],
+    ["[enter]", "commit"],
     ["[space]", "stage"],
     ["[r]", "unstage"],
     ["[a]", "stage all"],
     ["[u]", "unstage all"],
-    ["[c]", "copy path"],
+    ["[esc]", "exit"],
 ];
 
 pub(crate) struct FullscreenRenderer<'stdout> {

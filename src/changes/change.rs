@@ -1,13 +1,7 @@
-use std::{
-    io::Write,
-    path::Path,
-    process::{Command, Stdio},
-};
+use std::path::Path;
 
 use anyhow::{Context, Result};
-use arboard::Clipboard;
 use git2::{Index, IndexAddOption, IndexEntry, IndexTime, Oid, Tree};
-use wsl::is_wsl;
 
 use crate::statuses::Status;
 
@@ -86,36 +80,6 @@ impl Change {
                 let path = path.to_string_lossy();
                 format!("Failed to restore '{path}' from Git index to HEAD version")
             })?;
-        }
-
-        Ok(())
-    }
-
-    pub fn copy_path_to_clipboard(&self) -> Result<()> {
-        if is_wsl() {
-            let mut clip_exe = Command::new("clip.exe")
-                .stdin(Stdio::piped())
-                .spawn()
-                .context("Failed to launch clip.exe")?;
-
-            let mut stdin = clip_exe
-                .stdin
-                .take()
-                .context("Failed to get standard input handle from clip.exe")?;
-
-            stdin
-                .write_all(&self.path)
-                .context("Failed to write to standard input of clip.exe")?;
-        } else {
-            let mut clipboard = Clipboard::new().context("Failed to access clipboard")?;
-
-            let path = std::str::from_utf8(&self.path).context(
-                "Selected path is non-UTF8, not supported by this clipboard implementation",
-            )?;
-
-            clipboard
-                .set_text(path)
-                .context("Failed to set text of clipboard")?;
         }
 
         Ok(())
