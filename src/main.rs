@@ -24,11 +24,10 @@ fn main() -> Result<()> {
 
     let mut stdout = get_raw_stdout();
 
-    {
-        let mut renderer = FullscreenRenderer::new(&mut stdout)?;
-        renderer.render(&change_list)?;
-        user_input_event_loop(&mut change_list, &mut renderer)?;
-    } // Drops renderer, exiting fullscreen
+    let mut renderer = FullscreenRenderer::new(&mut stdout)?;
+    renderer.render(&change_list)?;
+    // Consumes the renderer, exiting fullscreen when it's dropped
+    user_input_event_loop(&mut change_list, renderer)?;
 
     change_list
         .refresh_changes()

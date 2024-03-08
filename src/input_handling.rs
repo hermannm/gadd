@@ -7,7 +7,7 @@ use crate::{changes::ChangeList, rendering::FullscreenRenderer};
 
 pub(crate) fn user_input_event_loop(
     change_list: &mut ChangeList,
-    renderer: &mut FullscreenRenderer,
+    mut renderer: FullscreenRenderer,
 ) -> Result<()> {
     #[cfg(windows)]
     handle_initial_enter_press_windows()
@@ -63,6 +63,8 @@ pub(crate) fn user_input_event_loop(
                 renderer.render(change_list)?;
             }
             (Enter, _) => {
+                // Drops the renderer before running git commit, to reset the terminal state.
+                drop(renderer);
                 Command::new("git")
                     .arg("commit")
                     .status()
