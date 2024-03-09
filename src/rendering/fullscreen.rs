@@ -19,11 +19,11 @@ use crate::{
 use super::status_symbols::{get_status_symbols, StatusSymbol};
 
 const INPUT_CONTROLS: [[&str; 2]; 6] = [
-    ["[enter]", "commit"],
     ["[space]", "stage"],
     ["[r]", "unstage"],
     ["[a]", "stage all"],
     ["[u]", "unstage all"],
+    ["[enter]", "commit"],
     ["[esc]", "exit"],
 ];
 
