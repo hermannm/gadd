@@ -9,24 +9,24 @@ pub(crate) struct ChangeList<'repo> {
     pub changes: Vec<Change>,
     pub index_of_selected_change: usize,
     ordering: ChangeOrdering,
-    repository: &'repo Repository,
+    repo: &'repo Repository,
     index: Index,
 }
 
 impl<'repo> ChangeList<'repo> {
-    pub fn new(repository: &'repo Repository) -> Result<ChangeList<'repo>> {
-        let index = repository
+    pub fn new(repo: &'repo Repository) -> Result<ChangeList<'repo>> {
+        let index = repo
             .index()
             .context("Failed to get Git index for repository")?;
 
-        let statuses = get_statuses(repository)?;
+        let statuses = get_statuses(repo)?;
         let statuses_length = statuses.len();
 
         let mut change_list = ChangeList {
             changes: Vec::<Change>::with_capacity(statuses_length),
             index_of_selected_change: 0,
             ordering: ChangeOrdering::with_capacity(statuses_length),
-            repository,
+            repo,
             index,
         };
 
@@ -129,7 +129,7 @@ impl<'repo> ChangeList<'repo> {
     }
 
     pub fn refresh_changes(&mut self) -> Result<()> {
-        let statuses = get_statuses(self.repository)?;
+        let statuses = get_statuses(self.repo)?;
         self.populate_changes(statuses)?;
         self.ordering.sort_changes(&mut self.changes);
 
@@ -180,9 +180,9 @@ impl<'repo> ChangeList<'repo> {
 
         let change = &self.changes[self.index_of_selected_change];
 
-        let repository_head_tree = get_repository_head_tree(self.repository)?;
+        let repo_head_tree = get_repo_head_tree(self.repo)?;
 
-        change.unstage(&mut self.index, &repository_head_tree)?;
+        change.unstage(&mut self.index, &repo_head_tree)?;
 
         self.index.write().context("Failed to write to Git index")?;
 
@@ -193,10 +193,10 @@ impl<'repo> ChangeList<'repo> {
     }
 
     pub fn unstage_all_changes(&mut self) -> Result<()> {
-        let repository_head_tree = get_repository_head_tree(self.repository)?;
+        let repo_head_tree = get_repo_head_tree(self.repo)?;
 
         for change in &self.changes {
-            change.unstage(&mut self.index, &repository_head_tree)?;
+            change.unstage(&mut self.index, &repo_head_tree)?;
         }
 
         self.index.write().context("Failed to write to Git index")?;
@@ -252,18 +252,17 @@ impl<'repo> ChangeList<'repo> {
     }
 }
 
-fn get_statuses(repository: &Repository) -> Result<Statuses> {
+fn get_statuses(repo: &Repository) -> Result<Statuses> {
     let mut options = StatusOptions::default();
     options.include_ignored(false);
     options.include_untracked(true);
 
-    repository
-        .statuses(Some(&mut options))
+    repo.statuses(Some(&mut options))
         .context("Failed to get change statuses for repository")
 }
 
-fn get_repository_head_tree(repository: &Repository) -> Result<Tree> {
-    let head = repository
+fn get_repo_head_tree(repo: &Repository) -> Result<Tree> {
+    let head = repo
         .head()
         .context("Failed to get HEAD reference from repository")?;
 

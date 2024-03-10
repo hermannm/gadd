@@ -51,7 +51,7 @@ impl Change {
         Ok(())
     }
 
-    pub fn unstage(&self, index: &mut Index, repository_head_tree: &Tree) -> Result<()> {
+    pub fn unstage(&self, index: &mut Index, repo_head_tree: &Tree) -> Result<()> {
         let path = bytes_to_path(&self.path);
 
         if matches!(self.status, Status::NonConflicting(status) if status.is_index_new()) {
@@ -65,7 +65,7 @@ impl Change {
             //    (i.e. the current state of the file)
             // 2. Creating a new "index entry" from that tree entry and adding it to the Git index
 
-            let tree_entry = repository_head_tree.get_path(path).with_context(|| {
+            let tree_entry = repo_head_tree.get_path(path).with_context(|| {
                 let path = path.to_string_lossy();
                 format!("Failed to get tree entry for '{path}' from HEAD tree in repository")
             })?;

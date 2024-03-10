@@ -12,10 +12,10 @@ mod rendering;
 mod statuses;
 
 fn main() -> Result<()> {
-    let repository =
+    let repo =
         Repository::discover(".").context("Failed to find Git repository at current location")?;
 
-    let mut change_list = ChangeList::new(&repository)?;
+    let mut change_list = ChangeList::new(&repo)?;
 
     if change_list.changes.is_empty() {
         println!("No changes!");
