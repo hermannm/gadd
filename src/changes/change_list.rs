@@ -5,8 +5,8 @@ use crate::statuses::{ConflictingStatus, Status, WORKTREE_STATUSES};
 
 use super::{
     branches::{get_current_branch, LocalBranch, UpstreamBranch},
+    change::Change,
     change_ordering::ChangeOrdering,
-    Change,
 };
 
 pub(crate) struct ChangeList<'repo> {

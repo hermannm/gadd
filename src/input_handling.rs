@@ -5,8 +5,11 @@ use git2::Repository;
 use std::{process::Command, thread};
 
 use crate::{
-    changes::{ChangeList, FetchStatus, LocalBranch, UpstreamBranch, UpstreamCommitsDiff},
-    rendering::FullscreenRenderer,
+    changes::{
+        branches::{LocalBranch, UpstreamBranch},
+        change_list::{ChangeList, FetchStatus, UpstreamCommitsDiff},
+    },
+    rendering::fullscreen::FullscreenRenderer,
 };
 
 enum Event {

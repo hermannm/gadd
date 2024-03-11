@@ -1,10 +1,10 @@
 use std::fs::File;
 
 use anyhow::{Context, Result};
-use changes::ChangeList;
+use changes::change_list::ChangeList;
 use git2::Repository;
 use input_handling::user_input_event_loop;
-use rendering::{render_inline, FullscreenRenderer};
+use rendering::{fullscreen::FullscreenRenderer, inline::render_inline};
 
 mod changes;
 mod input_handling;

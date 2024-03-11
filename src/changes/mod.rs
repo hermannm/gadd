@@ -1,11 +1,5 @@
-mod branches;
-mod change;
-mod change_list;
-mod change_ordering;
-mod status_priorities;
-
-pub(super) use self::{
-    branches::{LocalBranch, UpstreamBranch},
-    change::Change,
-    change_list::{ChangeList, FetchStatus, UpstreamCommitsDiff},
-};
+pub(crate) mod branches;
+pub(crate) mod change;
+pub(crate) mod change_list;
+pub(crate) mod change_ordering;
+pub(crate) mod status_priorities;

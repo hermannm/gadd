@@ -1,5 +1,3 @@
-mod fullscreen;
-mod inline;
-mod status_symbols;
-
-pub(super) use self::{fullscreen::FullscreenRenderer, inline::render_inline};
+pub(crate) mod fullscreen;
+pub(crate) mod inline;
+pub(crate) mod status_symbols;

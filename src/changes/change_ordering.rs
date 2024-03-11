@@ -1,8 +1,6 @@
 use std::{cmp::Ordering, collections::HashMap};
 
-use crate::changes::Change;
-
-use super::status_priorities::StatusPriorityMap;
+use super::{change::Change, status_priorities::StatusPriorityMap};
 
 pub(super) struct ChangeOrdering {
     map: HashMap<Vec<u8>, usize>,

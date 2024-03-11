@@ -12,7 +12,7 @@ use ratatui::{
 };
 
 use crate::{
-    changes::{Change, ChangeList},
+    changes::{change::Change, change_list::ChangeList},
     Stdout,
 };
 
