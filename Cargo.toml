@@ -13,8 +13,15 @@ exclude = ["cross-compile.sh"]
 
 [dependencies]
 anyhow = "1.0.70"
+crossbeam = "0.8.4"
+crossbeam-channel = "0.5.12"
 crossterm = { version = "0.26.1", default-features = false }
-git2 = { version = "0.17.1", default-features = false }
+git2 = { version = "0.17.1", features = [
+    "ssh",
+    "https",
+    "ssh_key_from_memory",
+    "vendored-openssl",
+] }
 ratatui = "0.20.1"
 
 [target.'cfg(windows)'.dependencies]

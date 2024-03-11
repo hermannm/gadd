@@ -1,16 +1,34 @@
-use anyhow::{anyhow, bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Error, Result};
 use git2::{Index, IndexAddOption, Repository, StatusOptions, Statuses, Tree};
 
 use crate::statuses::{ConflictingStatus, Status, WORKTREE_STATUSES};
 
-use super::{change_ordering::ChangeOrdering, Change};
+use super::{
+    branches::{get_current_branch, LocalBranch, UpstreamBranch},
+    change_ordering::ChangeOrdering,
+    Change,
+};
 
 pub(crate) struct ChangeList<'repo> {
     pub changes: Vec<Change>,
     pub index_of_selected_change: usize,
     ordering: ChangeOrdering,
-    repo: &'repo Repository,
+    pub repo: &'repo Repository,
     index: Index,
+    pub current_branch: LocalBranch,
+    pub upstream: Option<UpstreamBranch>,
+    pub fetch_status: FetchStatus,
+}
+
+pub(crate) enum FetchStatus {
+    Fetching,
+    Fetched(UpstreamCommitsDiff),
+    FetchFailed(Error),
+}
+
+pub(crate) struct UpstreamCommitsDiff {
+    pub ahead: usize,
+    pub behind: usize,
 }
 
 impl<'repo> ChangeList<'repo> {
@@ -22,12 +40,18 @@ impl<'repo> ChangeList<'repo> {
         let statuses = get_statuses(repo)?;
         let statuses_length = statuses.len();
 
+        let (current_branch, upstream) =
+            get_current_branch(repo).context("Failed to get current branch")?;
+
         let mut change_list = ChangeList {
             changes: Vec::<Change>::with_capacity(statuses_length),
             index_of_selected_change: 0,
             ordering: ChangeOrdering::with_capacity(statuses_length),
             repo,
             index,
+            current_branch,
+            upstream,
+            fetch_status: FetchStatus::Fetching,
         };
 
         change_list.populate_changes(statuses)?;
