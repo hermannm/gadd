@@ -2,12 +2,12 @@ use std::fs::File;
 
 use anyhow::{Context, Result};
 use changes::change_list::ChangeList;
+use event_loop::run_event_loop;
 use git2::Repository;
-use input_handling::user_input_event_loop;
 use rendering::{fullscreen::FullscreenRenderer, inline::render_inline};
 
 mod changes;
-mod input_handling;
+mod event_loop;
 mod rendering;
 mod statuses;
 
@@ -27,7 +27,7 @@ fn main() -> Result<()> {
         let mut renderer = FullscreenRenderer::new(&mut stdout)?;
         renderer.enter_fullscreen()?;
         renderer.render(&change_list)?;
-        user_input_event_loop(&mut change_list, &mut renderer)?;
+        run_event_loop(&mut change_list, &mut renderer)?;
         renderer.exit_fullscreen()?;
     }
 

@@ -24,7 +24,7 @@ enum Signal {
     Stop,
 }
 
-pub(crate) fn user_input_event_loop(
+pub(crate) fn run_event_loop(
     change_list: &mut ChangeList,
     renderer: &mut FullscreenRenderer,
 ) -> Result<()> {
