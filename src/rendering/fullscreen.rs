@@ -12,7 +12,10 @@ use ratatui::{
 };
 
 use crate::{
-    changes::{change::Change, change_list::ChangeList},
+    changes::{
+        change::Change,
+        change_list::{ChangeList, FetchStatus},
+    },
     Stdout,
 };
 
@@ -92,7 +95,8 @@ impl FullscreenRenderer<'_> {
                 let list_widget = FullscreenRenderer::list_widget_from_changes(change_list);
                 frame.render_stateful_widget(list_widget, chunks[0], &mut self.list_widget_state);
 
-                frame.render_widget(self.input_controls_widget.clone(), chunks[1]);
+                let bottom_bar = FullscreenRenderer::new_bottom_bar_widget(change_list);
+                frame.render_widget(bottom_bar, chunks[1]);
             })
             .context("Failed to draw to terminal")?;
 
@@ -149,6 +153,49 @@ impl FullscreenRenderer<'_> {
         ListItem::new(Spans::from(line))
     }
 
+    fn new_bottom_bar_widget<'a>(change_list: &'a ChangeList) -> Block<'a> {
+        let mut line = Vec::<Span>::new();
+
+        line.push(Span::styled("##", GRAY_TEXT));
+        line.push(Span::raw(" "));
+
+        line.push(Span::styled(&change_list.current_branch.name, GREEN_TEXT));
+
+        if let Some(upstream) = &change_list.upstream {
+            line.push(Span::raw("..."));
+            line.push(Span::styled(&upstream.full_name, RED_TEXT));
+
+            line.push(Span::raw(" "));
+            match &change_list.fetch_status {
+                FetchStatus::Fetching => line.push(Span::styled("Fetching...", GRAY_TEXT)),
+                FetchStatus::FetchFailed(_) => line.push(Span::styled("Fetch failed", GRAY_TEXT)),
+                FetchStatus::Fetched(diff) => {
+                    if diff.ahead != 0 || diff.behind != 0 {
+                        line.push(Span::raw("["));
+
+                        if diff.ahead != 0 {
+                            line.push(Span::raw("ahead "));
+                            line.push(Span::styled(diff.ahead.to_string(), GREEN_TEXT));
+
+                            if diff.behind != 0 {
+                                line.push(Span::raw(", "))
+                            }
+                        }
+
+                        if diff.behind != 0 {
+                            line.push(Span::raw("behind "));
+                            line.push(Span::styled(diff.behind.to_string(), RED_TEXT));
+                        }
+
+                        line.push(Span::raw("]"));
+                    }
+                }
+            }
+        }
+
+        Block::default().title(Spans::from(line))
+    }
+
     fn new_input_controls_widget() -> Block<'static> {
         let blue_text = Style::default().fg(Color::Blue);
 
@@ -175,6 +222,11 @@ const RED_TEXT: Style = Style {
 
 const GREEN_TEXT: Style = Style {
     fg: Some(Color::Green),
+    ..EMPTY_STYLE
+};
+
+const GRAY_TEXT: Style = Style {
+    fg: Some(Color::Gray),
     ..EMPTY_STYLE
 };
 
