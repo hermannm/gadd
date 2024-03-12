@@ -283,9 +283,18 @@ impl<'repo> ChangeList<'repo> {
 
     pub fn update_upstream_commits_diff(&mut self) -> Result<()> {
         if let Some(upstream) = &mut self.upstream {
+            let head = self
+                .repo
+                .head()
+                .context("Failed to get HEAD reference for repository")?;
+
+            let current_branch_object_id = head
+                .target()
+                .context("Failed to get the Git object ID of the HEAD reference")?;
+
             upstream.commits_diff = UpstreamCommitsDiff::from_repo(
                 self.repo,
-                self.current_branch.object_id,
+                current_branch_object_id,
                 upstream.object_id,
             )?;
         }
