@@ -9,7 +9,7 @@ use crate::{
         branches::{LocalBranch, UpstreamBranch, UpstreamCommitsDiff},
         change_list::ChangeList,
     },
-    rendering::fullscreen::{FullscreenRenderer, Mode},
+    rendering::fullscreen::{FullscreenRenderer, RenderMode},
 };
 
 enum Event {
@@ -35,8 +35,6 @@ pub(crate) fn run_event_loop(
     let (event_sender, event_receiver) = crossbeam_channel::unbounded::<Event>();
     let (input_signal_sender, input_signal_receiver) = crossbeam_channel::unbounded::<Signal>();
     let (fetch_signal_sender, fetch_signal_receiver) = crossbeam_channel::unbounded::<Signal>();
-
-    let mut mode = Mode::ChangeList;
 
     thread::scope(|scope| -> Result<()> {
         scope.spawn(|| run_input_worker(event_sender.clone(), input_signal_receiver));
@@ -67,7 +65,6 @@ pub(crate) fn run_event_loop(
                         event,
                         change_list,
                         renderer,
-                        &mut mode,
                         fetch_signal_sender.clone(),
                     ) {
                         Ok(Signal::Continue) => {
@@ -92,11 +89,11 @@ pub(crate) fn run_event_loop(
                 }
                 Event::FetchComplete(upstream_diff) => {
                     change_list.set_fetch_complete(upstream_diff);
-                    renderer.render(change_list, &mode)?;
+                    renderer.render(change_list)?;
                 }
                 Event::FetchError(_) => {
                     change_list.set_fetch_failed();
-                    renderer.render(change_list, &mode)?;
+                    renderer.render(change_list)?;
                 }
             }
         }
@@ -107,60 +104,59 @@ fn handle_user_input(
     event: KeyEvent,
     change_list: &mut ChangeList,
     renderer: &mut FullscreenRenderer,
-    mode: &mut Mode,
     fetch_signal_sender: Sender<Signal>,
 ) -> Result<Signal> {
     use KeyCode::*;
 
-    match mode {
-        Mode::ChangeList => match (event.code, event.modifiers) {
+    match renderer.mode {
+        RenderMode::ChangeList => match (event.code, event.modifiers) {
             (Up, _) => {
                 change_list.select_previous_change();
-                renderer.render(change_list, mode)?;
+                renderer.render(change_list)?;
             }
             (Down, _) => {
                 change_list.select_next_change();
-                renderer.render(change_list, mode)?;
+                renderer.render(change_list)?;
             }
             (Char(' '), _) => {
                 change_list
                     .stage_selected_change()
                     .context("Failed to stage selected change")?;
 
-                renderer.render(change_list, mode)?;
+                renderer.render(change_list)?;
             }
             (Char('r'), _) => {
                 change_list
                     .unstage_selected_change()
                     .context("Failed to unstage selected change")?;
 
-                renderer.render(change_list, mode)?;
+                renderer.render(change_list)?;
             }
             (Char('a'), _) => {
                 change_list
                     .stage_all_changes()
                     .context("Failed to stage all changes")?;
 
-                renderer.render(change_list, mode)?;
+                renderer.render(change_list)?;
             }
             (Char('u'), _) => {
                 change_list
                     .unstage_all_changes()
                     .context("Failed to unstage all changes")?;
 
-                renderer.render(change_list, mode)?;
+                renderer.render(change_list)?;
             }
             (Char('f'), _) => {
                 change_list.set_fetching();
-                renderer.render(change_list, mode)?;
+                renderer.render(change_list)?;
 
                 fetch_signal_sender
                     .send(Signal::Continue)
                     .context("Failed to reach worker thread to refetch upstream changes")?;
             }
             (Char('h'), _) => {
-                *mode = Mode::HelpScreen;
-                renderer.render(change_list, mode)?;
+                renderer.mode = RenderMode::HelpScreen;
+                renderer.render(change_list)?;
             }
             (Enter, _) => {
                 renderer
@@ -177,10 +173,10 @@ fn handle_user_input(
             }
             _ => {}
         },
-        Mode::HelpScreen => match (event.code, event.modifiers) {
+        RenderMode::HelpScreen => match (event.code, event.modifiers) {
             (Esc, _) => {
-                *mode = Mode::ChangeList;
-                renderer.render(change_list, mode)?;
+                renderer.mode = RenderMode::ChangeList;
+                renderer.render(change_list)?;
             }
             (Char('c'), KeyModifiers::CONTROL) => {
                 return Ok(Signal::Stop);

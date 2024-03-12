@@ -29,12 +29,13 @@ const INPUT_CONTROLS: [[&str; 2]; 7] = [
 ];
 
 pub(crate) struct FullscreenRenderer<'stdout> {
+    pub mode: RenderMode,
     terminal: Terminal<CrosstermBackend<&'stdout mut Stdout>>,
     list_widget_state: ListState,
     fullscreen_entered: bool,
 }
 
-pub(crate) enum Mode {
+pub(crate) enum RenderMode {
     ChangeList,
     HelpScreen,
 }
@@ -46,6 +47,7 @@ impl FullscreenRenderer<'_> {
 
         Ok(FullscreenRenderer {
             terminal,
+            mode: RenderMode::ChangeList,
             list_widget_state: ListState::default(),
             fullscreen_entered: false,
         })
@@ -83,7 +85,7 @@ impl FullscreenRenderer<'_> {
         Ok(())
     }
 
-    pub fn render(&mut self, change_list: &ChangeList, mode: &Mode) -> Result<()> {
+    pub fn render(&mut self, change_list: &ChangeList) -> Result<()> {
         self.update_list_widget_state(change_list);
 
         self.terminal
@@ -93,8 +95,8 @@ impl FullscreenRenderer<'_> {
                     .constraints([Constraint::Min(1), Constraint::Length(1)])
                     .split(frame.size());
 
-                match mode {
-                    Mode::ChangeList => {
+                match self.mode {
+                    RenderMode::ChangeList => {
                         let list_widget = FullscreenRenderer::list_widget_from_changes(change_list);
                         frame.render_stateful_widget(
                             list_widget,
@@ -102,7 +104,7 @@ impl FullscreenRenderer<'_> {
                             &mut self.list_widget_state,
                         );
                     }
-                    Mode::HelpScreen => {
+                    RenderMode::HelpScreen => {
                         let (help_screen, size) = FullscreenRenderer::new_help_screen_widget();
                         let help_screen_layout = Layout::default()
                             .direction(Direction::Vertical)
@@ -112,9 +114,9 @@ impl FullscreenRenderer<'_> {
                     }
                 };
 
-                let (shortcut_widget, shortcut_size) = match mode {
-                    Mode::ChangeList => FullscreenRenderer::new_help_shortcut_widget(),
-                    Mode::HelpScreen => FullscreenRenderer::new_back_shortcut_widget(),
+                let (shortcut_widget, shortcut_size) = match self.mode {
+                    RenderMode::ChangeList => FullscreenRenderer::new_help_shortcut_widget(),
+                    RenderMode::HelpScreen => FullscreenRenderer::new_back_shortcut_widget(),
                 };
 
                 let bottom_bar_layout = Layout::default()
