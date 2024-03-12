@@ -37,6 +37,7 @@ fn main() -> Result<()> {
     change_list
         .refresh_changes()
         .context("Failed to refresh changes on exit")?;
+    change_list.update_upstream_commits_diff()?;
 
     render_inline(&mut stdout, &change_list).context("Failed to render changes on exit")?;
 

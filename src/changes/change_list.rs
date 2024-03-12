@@ -280,6 +280,17 @@ impl<'repo> ChangeList<'repo> {
             upstream.fetch_status = FetchStatus::Fetching;
         }
     }
+
+    pub fn update_upstream_commits_diff(&mut self) -> Result<()> {
+        if let Some(upstream) = &mut self.upstream {
+            upstream.commits_diff = UpstreamCommitsDiff::from_repo(
+                self.repo,
+                self.current_branch.object_id,
+                upstream.object_id,
+            )?;
+        }
+        Ok(())
+    }
 }
 
 fn get_statuses(repo: &Repository) -> Result<Statuses> {
