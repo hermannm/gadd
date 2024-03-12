@@ -13,6 +13,21 @@ pub(crate) struct UpstreamBranch {
     pub remote_name: String,
     pub full_name: String,
     pub object_id: Oid,
+    pub commits_diff: UpstreamCommitsDiff,
+    pub fetch_status: FetchStatus,
+}
+
+#[derive(Clone)]
+pub(crate) enum FetchStatus {
+    Fetching,
+    FetchComplete,
+    FetchFailed,
+}
+
+#[derive(Clone)]
+pub(crate) struct UpstreamCommitsDiff {
+    pub ahead: usize,
+    pub behind: usize,
 }
 
 pub(crate) fn get_current_branch(
@@ -50,11 +65,16 @@ pub(crate) fn get_current_branch(
                 .target()
                 .context("Failed to get the Git object ID of the upstream branch")?;
 
+            let commits_diff =
+                UpstreamCommitsDiff::from_repo(repo, current_branch_object_id, upstream_object_id)?;
+
             Some(UpstreamBranch {
                 name: name.to_string(),
                 remote_name: remote_name.to_string(),
                 full_name: full_name.to_string(),
                 object_id: upstream_object_id,
+                commits_diff,
+                fetch_status: FetchStatus::Fetching,
             })
         }
         Err(err) => {
@@ -73,4 +93,18 @@ pub(crate) fn get_current_branch(
         },
         upstream,
     ))
+}
+
+impl UpstreamCommitsDiff {
+    pub fn from_repo(
+        repo: &Repository,
+        local_object_id: Oid,
+        upstream_object_id: Oid,
+    ) -> Result<UpstreamCommitsDiff> {
+        let (ahead, behind) = repo
+            .graph_ahead_behind(local_object_id, upstream_object_id)
+            .context("Failed to get commits ahead/behind upstream")?;
+
+        Ok(UpstreamCommitsDiff { ahead, behind })
+    }
 }

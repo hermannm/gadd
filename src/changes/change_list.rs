@@ -1,10 +1,10 @@
-use anyhow::{anyhow, bail, Context, Error, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use git2::{Index, IndexAddOption, Repository, StatusOptions, Statuses, Tree};
 
 use crate::statuses::{ConflictingStatus, Status, WORKTREE_STATUSES};
 
 use super::{
-    branches::{get_current_branch, LocalBranch, UpstreamBranch},
+    branches::{get_current_branch, FetchStatus, LocalBranch, UpstreamBranch, UpstreamCommitsDiff},
     change::Change,
     change_ordering::ChangeOrdering,
 };
@@ -17,18 +17,6 @@ pub(crate) struct ChangeList<'repo> {
     index: Index,
     pub current_branch: LocalBranch,
     pub upstream: Option<UpstreamBranch>,
-    pub fetch_status: FetchStatus,
-}
-
-pub(crate) enum FetchStatus {
-    Fetching,
-    Fetched(UpstreamCommitsDiff),
-    FetchFailed(Error),
-}
-
-pub(crate) struct UpstreamCommitsDiff {
-    pub ahead: usize,
-    pub behind: usize,
 }
 
 impl<'repo> ChangeList<'repo> {
@@ -51,7 +39,6 @@ impl<'repo> ChangeList<'repo> {
             index,
             current_branch,
             upstream,
-            fetch_status: FetchStatus::Fetching,
         };
 
         change_list.populate_changes(statuses)?;
@@ -272,6 +259,25 @@ impl<'repo> ChangeList<'repo> {
 
         if let Some(index) = first_worktree_change_index {
             self.index_of_selected_change = index;
+        }
+    }
+
+    pub fn set_fetch_complete(&mut self, commits_diff: UpstreamCommitsDiff) {
+        if let Some(upstream) = &mut self.upstream {
+            upstream.commits_diff = commits_diff;
+            upstream.fetch_status = FetchStatus::FetchComplete;
+        }
+    }
+
+    pub fn set_fetch_failed(&mut self) {
+        if let Some(upstream) = &mut self.upstream {
+            upstream.fetch_status = FetchStatus::FetchFailed;
+        }
+    }
+
+    pub fn set_fetching(&mut self) {
+        if let Some(upstream) = &mut self.upstream {
+            upstream.fetch_status = FetchStatus::Fetching;
         }
     }
 }

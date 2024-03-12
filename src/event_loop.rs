@@ -6,8 +6,8 @@ use std::{process::Command, thread};
 
 use crate::{
     changes::{
-        branches::{LocalBranch, UpstreamBranch},
-        change_list::{ChangeList, FetchStatus, UpstreamCommitsDiff},
+        branches::{LocalBranch, UpstreamBranch, UpstreamCommitsDiff},
+        change_list::ChangeList,
     },
     rendering::fullscreen::FullscreenRenderer,
 };
@@ -88,11 +88,12 @@ pub(crate) fn run_event_loop(
                     return Err(err);
                 }
                 Event::FetchComplete(upstream_diff) => {
-                    change_list.fetch_status = FetchStatus::Fetched(upstream_diff);
+                    change_list.set_fetch_complete(upstream_diff);
                     renderer.render(change_list)?;
                 }
-                Event::FetchError(err) => {
-                    change_list.fetch_status = FetchStatus::FetchFailed(err);
+                Event::FetchError(_) => {
+                    change_list.set_fetch_failed();
+                    renderer.render(change_list)?;
                 }
             }
         }
@@ -229,13 +230,14 @@ fn run_fetch_worker(
                 .with_context(|| format!("Failed to fetch upstream '{}'", upstream.full_name))
                 .map_err(send_err)
             {
-                if let Ok((ahead, behind)) = repo
-                    .graph_ahead_behind(current_branch.object_id, upstream.object_id)
-                    .context("Failed to get commits ahead/behind upstream")
-                    .map_err(send_err)
+                if let Ok(commits_diff) = UpstreamCommitsDiff::from_repo(
+                    &repo,
+                    current_branch.object_id,
+                    upstream.object_id,
+                )
+                .map_err(send_err)
                 {
-                    event_sender
-                        .must_send(Event::FetchComplete(UpstreamCommitsDiff { ahead, behind }))
+                    event_sender.must_send(Event::FetchComplete(commits_diff))
                 }
             };
         }

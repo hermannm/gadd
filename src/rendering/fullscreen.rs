@@ -12,10 +12,7 @@ use ratatui::{
 };
 
 use crate::{
-    changes::{
-        change::Change,
-        change_list::{ChangeList, FetchStatus},
-    },
+    changes::{branches::FetchStatus, change::Change, change_list::ChangeList},
     Stdout,
 };
 
@@ -165,31 +162,31 @@ impl FullscreenRenderer<'_> {
             line.push(Span::raw("..."));
             line.push(Span::styled(&upstream.full_name, RED_TEXT));
 
-            line.push(Span::raw(" "));
-            match &change_list.fetch_status {
-                FetchStatus::Fetching => line.push(Span::styled("Fetching...", GRAY_TEXT)),
-                FetchStatus::FetchFailed(_) => line.push(Span::styled("Fetch failed", GRAY_TEXT)),
-                FetchStatus::Fetched(diff) => {
-                    if diff.ahead != 0 || diff.behind != 0 {
-                        line.push(Span::raw("["));
+            let diff = &upstream.commits_diff;
+            if diff.ahead != 0 || diff.behind != 0 {
+                line.push(Span::raw(" ["));
 
-                        if diff.ahead != 0 {
-                            line.push(Span::raw("ahead "));
-                            line.push(Span::styled(diff.ahead.to_string(), GREEN_TEXT));
+                if diff.ahead != 0 {
+                    line.push(Span::raw("ahead "));
+                    line.push(Span::styled(diff.ahead.to_string(), GREEN_TEXT));
 
-                            if diff.behind != 0 {
-                                line.push(Span::raw(", "))
-                            }
-                        }
-
-                        if diff.behind != 0 {
-                            line.push(Span::raw("behind "));
-                            line.push(Span::styled(diff.behind.to_string(), RED_TEXT));
-                        }
-
-                        line.push(Span::raw("]"));
+                    if diff.behind != 0 {
+                        line.push(Span::raw(", "))
                     }
                 }
+
+                if diff.behind != 0 {
+                    line.push(Span::raw("behind "));
+                    line.push(Span::styled(diff.behind.to_string(), RED_TEXT));
+                }
+
+                line.push(Span::raw("]"));
+            }
+
+            match &upstream.fetch_status {
+                FetchStatus::Fetching => line.push(Span::styled(" Fetching...", GRAY_TEXT)),
+                FetchStatus::FetchFailed => line.push(Span::styled(" Fetch failed", GRAY_TEXT)),
+                FetchStatus::FetchComplete => {}
             }
         }
 
