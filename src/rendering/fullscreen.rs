@@ -1,17 +1,13 @@
 use std::io::Write;
 
 use anyhow::{Context, Result};
-use crossterm::{
-    cursor,
-    terminal::{self, SetSize},
-    QueueableCommand,
-};
+use crossterm::{cursor, terminal, QueueableCommand};
 use ratatui::{
     backend::CrosstermBackend,
-    layout::{Constraint, Corner, Direction, Layout},
+    layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
-    text::{Span, Spans},
-    widgets::{Block, List, ListItem, ListState},
+    text::{Line, Span, Text},
+    widgets::{Block, List, ListDirection, ListItem, ListState, Paragraph},
     Terminal,
 };
 
@@ -22,11 +18,12 @@ use crate::{
 
 use super::status_symbols::{get_status_symbols, StatusSymbol};
 
-const INPUT_CONTROLS: [[&str; 2]; 6] = [
+const INPUT_CONTROLS: [[&str; 2]; 7] = [
     ["[Space]", "Stage"],
     ["[R]", "Unstage"],
     ["[A]", "Stage all"],
     ["[U]", "Unstage all"],
+    ["[F]", "Fetch"],
     ["[Enter]", "Commit"],
     ["[Esc]", "Exit"],
 ];
@@ -96,27 +93,39 @@ impl FullscreenRenderer<'_> {
                     .constraints([Constraint::Min(1), Constraint::Length(1)])
                     .split(frame.size());
 
-                let list_widget = FullscreenRenderer::list_widget_from_changes(change_list);
-                frame.render_stateful_widget(
-                    list_widget,
-                    main_layout[0],
-                    &mut self.list_widget_state,
-                );
+                match mode {
+                    Mode::ChangeList => {
+                        let list_widget = FullscreenRenderer::list_widget_from_changes(change_list);
+                        frame.render_stateful_widget(
+                            list_widget,
+                            main_layout[0],
+                            &mut self.list_widget_state,
+                        );
+                    }
+                    Mode::HelpScreen => {
+                        let (help_screen, size) = FullscreenRenderer::new_help_screen_widget();
+                        let help_screen_layout = Layout::default()
+                            .direction(Direction::Vertical)
+                            .constraints([Constraint::Min(1), Constraint::Length(size)])
+                            .split(main_layout[0]);
+                        frame.render_widget(help_screen, help_screen_layout[1]);
+                    }
+                };
 
-                let (shortcut_widget, shortcut_length) = match mode {
+                let (shortcut_widget, shortcut_size) = match mode {
                     Mode::ChangeList => FullscreenRenderer::new_help_shortcut_widget(),
                     Mode::HelpScreen => FullscreenRenderer::new_back_shortcut_widget(),
                 };
 
                 let bottom_bar_layout = Layout::default()
                     .direction(Direction::Horizontal)
-                    .constraints([Constraint::Min(1), Constraint::Length(shortcut_length)])
+                    .constraints([Constraint::Min(1), Constraint::Length(shortcut_size)])
                     .split(main_layout[1]);
 
                 let branch_status = FullscreenRenderer::new_branch_status_widget(change_list);
                 frame.render_widget(branch_status, bottom_bar_layout[0]);
 
-                frame.render_widget(shortcut_widget.clone(), bottom_bar_layout[1])
+                frame.render_widget(shortcut_widget, bottom_bar_layout[1])
             })
             .context("Failed to draw to terminal")?;
 
@@ -144,7 +153,7 @@ impl FullscreenRenderer<'_> {
             list_items.push(list_item);
         }
 
-        List::new(list_items).start_corner(Corner::BottomLeft)
+        List::new(list_items).direction(ListDirection::BottomToTop)
     }
 
     fn list_item_widget_from_change(change: &Change, is_selected: bool) -> ListItem {
@@ -170,7 +179,7 @@ impl FullscreenRenderer<'_> {
             }
         });
 
-        ListItem::new(Spans::from(line))
+        ListItem::new(Line::from(line))
     }
 
     fn new_branch_status_widget<'a>(change_list: &'a ChangeList) -> Block<'a> {
@@ -213,37 +222,43 @@ impl FullscreenRenderer<'_> {
             }
         }
 
-        Block::default().title(Spans::from(line))
+        Block::default().title(Line::from(line))
     }
 
-    fn new_help_screen_widget() -> Block<'static> {
-        let mut line = Vec::<Span>::with_capacity(3 * INPUT_CONTROLS.len() + 1);
+    /// Returns (widget, size).
+    fn new_help_screen_widget() -> (Paragraph<'static>, u16) {
+        let mut lines = Vec::<Line>::with_capacity(2 + INPUT_CONTROLS.len());
 
-        for (i, [button, description]) in INPUT_CONTROLS.into_iter().enumerate() {
-            line.push(Span::styled(button, BLUE_TEXT));
-            line.push(Span::raw(" "));
-            line.push(Span::raw(description));
+        lines.push(Line::raw(
+            "gadd - command-line utility for staging changes to Git.",
+        ));
+        lines.push(Line::raw(""));
 
-            if i < INPUT_CONTROLS.len() - 1 {
-                line.push(Span::raw(" "));
-            }
+        for [keybind, description] in INPUT_CONTROLS {
+            lines.push(Line::from(vec![
+                Span::raw("  "),
+                Span::styled(keybind, BLUE_TEXT),
+                Span::raw(" "),
+                Span::raw(description),
+            ]))
         }
 
-        Block::default().title(Spans::from(line))
+        let size = (lines.len() + 1) as u16;
+        (Paragraph::new(Text::from(lines)), size)
     }
 
     /// Returns (widget, size).
     fn new_help_shortcut_widget() -> (Block<'static>, u16) {
         let line = vec![Span::styled("[H]", BLUE_TEXT), Span::raw(" Help")];
         let size = " [H] Help".len() as u16;
-        (Block::default().title(Spans::from(line)), size)
+        (Block::default().title(Line::from(line)), size)
     }
 
     /// Returns (widget, size).
     fn new_back_shortcut_widget() -> (Block<'static>, u16) {
         let line = vec![Span::styled("[Esc]", BLUE_TEXT), Span::raw(" Back")];
         let size = " [Esc] Back".len() as u16;
-        (Block::default().title(Spans::from(line)), size)
+        (Block::default().title(Line::from(line)), size)
     }
 }
 
@@ -278,4 +293,5 @@ const EMPTY_STYLE: Style = Style {
     bg: None,
     add_modifier: Modifier::empty(),
     sub_modifier: Modifier::empty(),
+    underline_color: None,
 };
