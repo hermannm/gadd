@@ -145,6 +145,9 @@ fn handle_user_input(
             renderer.render(change_list)?;
         }
         (Char('f'), _) => {
+            change_list.set_fetching();
+            renderer.render(change_list)?;
+
             fetch_signal_sender
                 .send(Signal::Continue)
                 .context("Failed to reach worker thread to refetch upstream changes")?;
