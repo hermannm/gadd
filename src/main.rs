@@ -4,7 +4,10 @@ use anyhow::{Context, Result};
 use changes::change_list::ChangeList;
 use event_loop::run_event_loop;
 use git2::Repository;
-use rendering::{fullscreen::FullscreenRenderer, inline::render_inline};
+use rendering::{
+    fullscreen::{FullscreenRenderer, Mode},
+    inline::render_inline,
+};
 
 mod changes;
 mod event_loop;
@@ -26,7 +29,7 @@ fn main() -> Result<()> {
     {
         let mut renderer = FullscreenRenderer::new(&mut stdout)?;
         renderer.enter_fullscreen()?;
-        renderer.render(&change_list)?;
+        renderer.render(&change_list, &Mode::ChangeList)?;
         run_event_loop(&mut change_list, &mut renderer)?;
         renderer.exit_fullscreen()?;
     }

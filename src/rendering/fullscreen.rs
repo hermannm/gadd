@@ -1,7 +1,11 @@
 use std::io::Write;
 
 use anyhow::{Context, Result};
-use crossterm::{cursor, terminal, QueueableCommand};
+use crossterm::{
+    cursor,
+    terminal::{self, SetSize},
+    QueueableCommand,
+};
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Corner, Direction, Layout},
@@ -29,10 +33,13 @@ const INPUT_CONTROLS: [[&str; 2]; 6] = [
 
 pub(crate) struct FullscreenRenderer<'stdout> {
     terminal: Terminal<CrosstermBackend<&'stdout mut Stdout>>,
-    input_controls_widget: Block<'static>,
-    help_shortcut_widget: Block<'static>,
     list_widget_state: ListState,
     fullscreen_entered: bool,
+}
+
+pub(crate) enum Mode {
+    ChangeList,
+    HelpScreen,
 }
 
 impl FullscreenRenderer<'_> {
@@ -42,8 +49,6 @@ impl FullscreenRenderer<'_> {
 
         Ok(FullscreenRenderer {
             terminal,
-            input_controls_widget: FullscreenRenderer::new_input_controls_widget(),
-            help_shortcut_widget: FullscreenRenderer::new_help_shortcut_widget(),
             list_widget_state: ListState::default(),
             fullscreen_entered: false,
         })
@@ -81,7 +86,7 @@ impl FullscreenRenderer<'_> {
         Ok(())
     }
 
-    pub fn render(&mut self, change_list: &ChangeList) -> Result<()> {
+    pub fn render(&mut self, change_list: &ChangeList, mode: &Mode) -> Result<()> {
         self.update_list_widget_state(change_list);
 
         self.terminal
@@ -98,18 +103,20 @@ impl FullscreenRenderer<'_> {
                     &mut self.list_widget_state,
                 );
 
+                let (shortcut_widget, shortcut_length) = match mode {
+                    Mode::ChangeList => FullscreenRenderer::new_help_shortcut_widget(),
+                    Mode::HelpScreen => FullscreenRenderer::new_back_shortcut_widget(),
+                };
+
                 let bottom_bar_layout = Layout::default()
                     .direction(Direction::Horizontal)
-                    .constraints([
-                        Constraint::Min(1),
-                        Constraint::Length(" [H] Help".len() as u16),
-                    ])
+                    .constraints([Constraint::Min(1), Constraint::Length(shortcut_length)])
                     .split(main_layout[1]);
 
                 let branch_status = FullscreenRenderer::new_branch_status_widget(change_list);
                 frame.render_widget(branch_status, bottom_bar_layout[0]);
 
-                frame.render_widget(self.help_shortcut_widget.clone(), bottom_bar_layout[1])
+                frame.render_widget(shortcut_widget.clone(), bottom_bar_layout[1])
             })
             .context("Failed to draw to terminal")?;
 
@@ -209,7 +216,7 @@ impl FullscreenRenderer<'_> {
         Block::default().title(Spans::from(line))
     }
 
-    fn new_input_controls_widget() -> Block<'static> {
+    fn new_help_screen_widget() -> Block<'static> {
         let mut line = Vec::<Span>::with_capacity(3 * INPUT_CONTROLS.len() + 1);
 
         for (i, [button, description]) in INPUT_CONTROLS.into_iter().enumerate() {
@@ -225,9 +232,18 @@ impl FullscreenRenderer<'_> {
         Block::default().title(Spans::from(line))
     }
 
-    fn new_help_shortcut_widget() -> Block<'static> {
+    /// Returns (widget, size).
+    fn new_help_shortcut_widget() -> (Block<'static>, u16) {
         let line = vec![Span::styled("[H]", BLUE_TEXT), Span::raw(" Help")];
-        Block::default().title(Spans::from(line))
+        let size = " [H] Help".len() as u16;
+        (Block::default().title(Spans::from(line)), size)
+    }
+
+    /// Returns (widget, size).
+    fn new_back_shortcut_widget() -> (Block<'static>, u16) {
+        let line = vec![Span::styled("[Esc]", BLUE_TEXT), Span::raw(" Back")];
+        let size = " [Esc] Back".len() as u16;
+        (Block::default().title(Spans::from(line)), size)
     }
 }
 
