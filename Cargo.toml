@@ -22,7 +22,7 @@ git2 = { version = "0.17.1", features = [
     "ssh_key_from_memory",
     "vendored-openssl",
 ] }
-ratatui = "0.20.1"
+ratatui = "0.26.1"
 
 [target.'cfg(windows)'.dependencies]
 kernel32-sys = "0.2.2"
