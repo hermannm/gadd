@@ -6,6 +6,7 @@ use event_loop::run_event_loop;
 use git2::Repository;
 use rendering::{fullscreen::FullscreenRenderer, inline::render_inline};
 
+mod auth;
 mod changes;
 mod event_loop;
 mod rendering;

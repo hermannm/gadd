@@ -1,13 +1,14 @@
 use anyhow::{Context, Error, Result};
 use crossbeam_channel::{Receiver, Sender};
 use crossterm::event::{self, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use git2::Repository;
+use git2::{Config, FetchOptions, RemoteCallbacks, Repository};
 use std::{
     process::Command,
     thread::{self, JoinHandle},
 };
 
 use crate::{
+    auth::with_authentication,
     changes::{
         branches::{FetchStatus, LocalBranch, UpstreamBranch, UpstreamCommitsDiff},
         change_list::ChangeList,
@@ -147,7 +148,7 @@ fn handle_user_input<'a>(
             }
             (Char('f'), _) => {
                 if let Some(upstream) = &mut change_list.upstream {
-                    if upstream.fetch_status != FetchStatus::Fetching {
+                    if upstream.fetch_status == FetchStatus::Complete {
                         upstream.fetch_status = FetchStatus::Fetching;
                         renderer.render(change_list)?;
 
@@ -225,6 +226,8 @@ fn spawn_fetch_thread(
     signal_receiver: Receiver<Signal>,
 ) {
     spawn_named_thread("Fetcher", move || {
+        let Some(upstream) = upstream else { return };
+
         let send_err = |err: Error| event_sender.must_send(Event::FetchError(err));
 
         let Ok(repo) = Repository::discover(".")
@@ -234,25 +237,39 @@ fn spawn_fetch_thread(
             return;
         };
 
-        let mut upstream_with_remote = if let Some(upstream) = upstream {
-            let Ok(remote) = repo
-                .find_remote(&upstream.remote_name)
-                .with_context(|| {
-                    format!("Failed to find remote with name '{}'", upstream.remote_name)
-                })
-                .map_err(send_err)
-            else {
-                return;
-            };
-            Some((upstream, remote))
-        } else {
-            None
+        let Ok(mut remote) = repo
+            .find_remote(&upstream.remote_name)
+            .with_context(|| format!("Failed to find remote with name '{}'", upstream.remote_name))
+            .map_err(send_err)
+        else {
+            return;
         };
 
-        loop {
-            if let Some((upstream, remote)) = &mut upstream_with_remote {
+        let Ok(url) = remote
+            .url()
+            .map(|url| url.to_string())
+            .context("Remote URL was not valid UTF-8")
+            .map_err(send_err)
+        else {
+            return;
+        };
+
+        let Ok(config) = Config::open_default()
+            .context("Failed to open Git config for authenticating fetch")
+            .map_err(send_err)
+        else {
+            return;
+        };
+
+        let _ = with_authentication(&url, &config, |credentials| {
+            let mut callbacks = RemoteCallbacks::new();
+            callbacks.credentials(credentials);
+            let mut options = FetchOptions::new();
+            options.remote_callbacks(callbacks);
+
+            loop {
                 if let Ok(()) = remote
-                    .fetch(&[&upstream.name], None, None)
+                    .fetch(&[&upstream.name], Some(&mut options), None)
                     .with_context(|| format!("Failed to fetch upstream '{}'", upstream.full_name))
                     .map_err(send_err)
                 {
@@ -266,13 +283,16 @@ fn spawn_fetch_thread(
                         event_sender.must_send(Event::FetchComplete(commits_diff))
                     }
                 };
+
+                match signal_receiver.must_recv() {
+                    Signal::Continue => continue,
+                    Signal::Stop => break,
+                }
             }
 
-            match signal_receiver.must_recv() {
-                Signal::Continue => continue,
-                Signal::Stop => break,
-            }
-        }
+            Ok(())
+        })
+        .map_err(send_err);
     });
 }
 
