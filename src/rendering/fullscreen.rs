@@ -217,7 +217,7 @@ impl FullscreenRenderer<'_> {
         Block::default().title(Line::from(line))
     }
 
-    const INPUT_CONTROLS: [[&str; 2]; 7] = [
+    const INPUT_CONTROLS: [[&'static str; 2]; 7] = [
         ["[Space]", "Stage"],
         ["[R]", "Unstage"],
         ["[A]", "Stage all"],
