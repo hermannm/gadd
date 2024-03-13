@@ -20,8 +20,8 @@ pub(crate) struct UpstreamBranch {
 #[derive(Clone, PartialEq, Eq)]
 pub(crate) enum FetchStatus {
     Fetching,
-    FetchComplete,
-    FetchFailed,
+    Complete,
+    Failed,
 }
 
 #[derive(Clone)]

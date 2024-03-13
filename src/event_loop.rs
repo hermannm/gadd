@@ -90,13 +90,13 @@ pub(crate) fn run_event_loop(
                 Event::FetchComplete(upstream_diff) => {
                     if let Some(upstream) = &mut change_list.upstream {
                         upstream.commits_diff = upstream_diff;
-                        upstream.fetch_status = FetchStatus::FetchComplete;
+                        upstream.fetch_status = FetchStatus::Complete;
                         renderer.render(change_list)?;
                     }
                 }
                 Event::FetchError(_) => {
                     if let Some(upstream) = &mut change_list.upstream {
-                        upstream.fetch_status = FetchStatus::FetchFailed;
+                        upstream.fetch_status = FetchStatus::Failed;
                         renderer.render(change_list)?;
                     }
                 }

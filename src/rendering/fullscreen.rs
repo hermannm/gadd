@@ -209,8 +209,8 @@ impl FullscreenRenderer<'_> {
 
             match &upstream.fetch_status {
                 FetchStatus::Fetching => line.push(Span::styled(" Fetching...", GRAY_TEXT)),
-                FetchStatus::FetchFailed => line.push(Span::styled(" Fetch failed", GRAY_TEXT)),
-                FetchStatus::FetchComplete => {}
+                FetchStatus::Failed => line.push(Span::styled(" Fetch failed", GRAY_TEXT)),
+                FetchStatus::Complete => {}
             }
         }
 
