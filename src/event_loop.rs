@@ -33,77 +33,66 @@ pub(crate) fn run_event_loop(
         .context("Failed to read initial ENTER press (Windows-specific)")?;
 
     let (event_sender, event_receiver) = crossbeam_channel::unbounded::<Event>();
+
     let (input_signal_sender, input_signal_receiver) = crossbeam_channel::unbounded::<Signal>();
     let (fetch_signal_sender, fetch_signal_receiver) = crossbeam_channel::unbounded::<Signal>();
 
-    thread::scope(|scope| -> Result<()> {
-        scope.spawn(|| run_input_worker(event_sender.clone(), input_signal_receiver));
+    spawn_input_thread(event_sender.clone(), input_signal_receiver);
+    spawn_fetch_thread(
+        change_list.current_branch.clone(),
+        change_list.upstream.clone(),
+        event_sender,
+        fetch_signal_receiver,
+    );
 
-        let current_branch = change_list.current_branch.clone();
-        let upstream = change_list.upstream.clone();
-        scope.spawn(|| {
-            run_fetch_worker(
-                current_branch,
-                upstream,
-                event_sender.clone(),
-                fetch_signal_receiver,
-            )
-        });
+    let stop_input_thread = || {
+        let _ = input_signal_sender.send(Signal::Stop);
+    };
+    let stop_fetch_thread = || {
+        let _ = fetch_signal_sender.send(Signal::Stop);
+    };
 
-        let stop_input_worker = || {
-            let _ = input_signal_sender.send(Signal::Stop);
-        };
-        let stop_fetch_worker = || {
-            let _ = fetch_signal_sender.send(Signal::Stop);
-        };
-
-        loop {
-            let event = event_receiver.recv()?;
-            match event {
-                Event::UserInput(event) => {
-                    match handle_user_input(
-                        event,
-                        change_list,
-                        renderer,
-                        fetch_signal_sender.clone(),
-                    ) {
-                        Ok(Some(returned_renderer)) => {
-                            renderer = returned_renderer;
-                            input_signal_sender.must_send(Signal::Continue);
-                            continue;
-                        }
-                        Ok(None) => {
-                            stop_input_worker();
-                            stop_fetch_worker();
-                            return Ok(());
-                        }
-                        Err(err) => {
-                            stop_input_worker();
-                            stop_fetch_worker();
-                            return Err(err);
-                        }
+    loop {
+        let event = event_receiver.recv()?;
+        match event {
+            Event::UserInput(event) => {
+                match handle_user_input(event, change_list, renderer, fetch_signal_sender.clone()) {
+                    Ok(Some(returned_renderer)) => {
+                        renderer = returned_renderer;
+                        input_signal_sender.must_send(Signal::Continue);
+                        continue;
                     }
-                }
-                Event::UserInputError(err) => {
-                    stop_fetch_worker(); // input worker will already have stopped on error
-                    return Err(err);
-                }
-                Event::FetchComplete(upstream_diff) => {
-                    if let Some(upstream) = &mut change_list.upstream {
-                        upstream.commits_diff = upstream_diff;
-                        upstream.fetch_status = FetchStatus::Complete;
-                        renderer.render(change_list)?;
+                    Ok(None) => {
+                        stop_input_thread();
+                        stop_fetch_thread();
+                        return Ok(());
                     }
-                }
-                Event::FetchError(_) => {
-                    if let Some(upstream) = &mut change_list.upstream {
-                        upstream.fetch_status = FetchStatus::Failed;
-                        renderer.render(change_list)?;
+                    Err(err) => {
+                        stop_input_thread();
+                        stop_fetch_thread();
+                        return Err(err);
                     }
                 }
             }
+            Event::UserInputError(err) => {
+                stop_fetch_thread(); // Input thread will already have stopped on error
+                return Err(err);
+            }
+            Event::FetchComplete(upstream_diff) => {
+                if let Some(upstream) = &mut change_list.upstream {
+                    upstream.commits_diff = upstream_diff;
+                    upstream.fetch_status = FetchStatus::Complete;
+                    renderer.render(change_list)?;
+                }
+            }
+            Event::FetchError(_) => {
+                if let Some(upstream) = &mut change_list.upstream {
+                    upstream.fetch_status = FetchStatus::Failed;
+                    renderer.render(change_list)?;
+                }
+            }
         }
-    })
+    }
 }
 
 /// Consumes renderer if user requested exit, otherwise returns it to continue rendering fullscreen.
@@ -159,9 +148,9 @@ fn handle_user_input<'a>(
                         upstream.fetch_status = FetchStatus::Fetching;
                         renderer.render(change_list)?;
 
-                        fetch_signal_sender
-                            .send(Signal::Continue)
-                            .context("Failed to reach worker thread to refetch upstream changes")?;
+                        fetch_signal_sender.send(Signal::Continue).context(
+                            "Failed to reach thread responsible for fetching upstream changes",
+                        )?;
                     }
                 }
             }
@@ -196,86 +185,92 @@ fn handle_user_input<'a>(
     Ok(Some(renderer))
 }
 
-fn run_input_worker(event_sender: Sender<Event>, signal_receiver: Receiver<Signal>) {
-    let send_err = |err: Error| event_sender.must_send(Event::UserInputError(err));
+fn spawn_input_thread(event_sender: Sender<Event>, signal_receiver: Receiver<Signal>) {
+    thread::spawn(move || {
+        let send_err = |err: Error| event_sender.must_send(Event::UserInputError(err));
 
-    loop {
-        let Ok(user_input) = event::read()
-            .context("Failed to read user input")
-            .map_err(send_err)
-        else {
-            return;
-        };
+        loop {
+            let Ok(user_input) = event::read()
+                .context("Failed to read user input")
+                .map_err(send_err)
+            else {
+                return;
+            };
 
-        let event::Event::Key(user_input) = user_input else {
-            continue;
-        };
+            let event::Event::Key(user_input) = user_input else {
+                continue;
+            };
 
-        if user_input.kind != KeyEventKind::Press {
-            continue;
+            if user_input.kind != KeyEventKind::Press {
+                continue;
+            }
+
+            event_sender.must_send(Event::UserInput(user_input));
+
+            match signal_receiver.must_recv() {
+                Signal::Continue => continue,
+                Signal::Stop => break,
+            }
         }
-
-        event_sender.must_send(Event::UserInput(user_input));
-
-        match signal_receiver.must_recv() {
-            Signal::Continue => continue,
-            Signal::Stop => break,
-        }
-    }
+    });
 }
 
-fn run_fetch_worker(
+fn spawn_fetch_thread(
     current_branch: LocalBranch,
     upstream: Option<UpstreamBranch>,
     event_sender: Sender<Event>,
     signal_receiver: Receiver<Signal>,
 ) {
-    let send_err = |err: Error| event_sender.must_send(Event::FetchError(err));
+    thread::spawn(move || {
+        let send_err = |err: Error| event_sender.must_send(Event::FetchError(err));
 
-    let Ok(repo) = Repository::discover(".")
-        .context("Failed to find Git repository at current location")
-        .map_err(send_err)
-    else {
-        return;
-    };
-
-    let mut upstream_with_remote = if let Some(upstream) = upstream {
-        let Ok(remote) = repo
-            .find_remote(&upstream.remote_name)
-            .with_context(|| format!("Failed to find remote with name '{}'", upstream.remote_name))
+        let Ok(repo) = Repository::discover(".")
+            .context("Failed to find Git repository at current location")
             .map_err(send_err)
         else {
             return;
         };
-        Some((upstream, remote))
-    } else {
-        None
-    };
 
-    loop {
-        if let Some((upstream, remote)) = &mut upstream_with_remote {
-            if let Ok(()) = remote
-                .fetch(&[&upstream.name], None, None)
-                .with_context(|| format!("Failed to fetch upstream '{}'", upstream.full_name))
+        let mut upstream_with_remote = if let Some(upstream) = upstream {
+            let Ok(remote) = repo
+                .find_remote(&upstream.remote_name)
+                .with_context(|| {
+                    format!("Failed to find remote with name '{}'", upstream.remote_name)
+                })
                 .map_err(send_err)
-            {
-                if let Ok(commits_diff) = UpstreamCommitsDiff::from_repo(
-                    &repo,
-                    current_branch.object_id,
-                    upstream.object_id,
-                )
-                .map_err(send_err)
-                {
-                    event_sender.must_send(Event::FetchComplete(commits_diff))
-                }
+            else {
+                return;
             };
-        }
+            Some((upstream, remote))
+        } else {
+            None
+        };
 
-        match signal_receiver.must_recv() {
-            Signal::Continue => continue,
-            Signal::Stop => break,
+        loop {
+            if let Some((upstream, remote)) = &mut upstream_with_remote {
+                if let Ok(()) = remote
+                    .fetch(&[&upstream.name], None, None)
+                    .with_context(|| format!("Failed to fetch upstream '{}'", upstream.full_name))
+                    .map_err(send_err)
+                {
+                    if let Ok(commits_diff) = UpstreamCommitsDiff::from_repo(
+                        &repo,
+                        current_branch.object_id,
+                        upstream.object_id,
+                    )
+                    .map_err(send_err)
+                    {
+                        event_sender.must_send(Event::FetchComplete(commits_diff))
+                    }
+                };
+            }
+
+            match signal_receiver.must_recv() {
+                Signal::Continue => continue,
+                Signal::Stop => break,
+            }
         }
-    }
+    });
 }
 
 #[cfg(windows)]
