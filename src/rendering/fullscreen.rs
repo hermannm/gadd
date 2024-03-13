@@ -22,7 +22,6 @@ pub(crate) struct FullscreenRenderer<'stdout> {
     pub mode: RenderMode,
     terminal: Terminal<CrosstermBackend<&'stdout mut Stdout>>,
     list_widget_state: ListState,
-    fullscreen_entered: bool,
 }
 
 pub(crate) enum RenderMode {
@@ -32,6 +31,15 @@ pub(crate) enum RenderMode {
 
 impl FullscreenRenderer<'_> {
     pub fn new(stdout: &mut Stdout) -> Result<FullscreenRenderer> {
+        terminal::enable_raw_mode().context("Failed to enter terminal raw mode")?;
+        stdout
+            .queue(terminal::EnterAlternateScreen)
+            .context("Failed to enter fullscreen in terminal")?
+            .queue(cursor::Hide)
+            .context("Failed to hide cursor when setting up terminal")?
+            .flush()
+            .context("Failed to flush terminal setup to stdout")?;
+
         let terminal = ratatui::Terminal::new(CrosstermBackend::new(stdout))
             .context("Failed to create terminal instance")?;
 
@@ -39,40 +47,7 @@ impl FullscreenRenderer<'_> {
             terminal,
             mode: RenderMode::ChangeList,
             list_widget_state: ListState::default(),
-            fullscreen_entered: false,
         })
-    }
-
-    pub fn enter_fullscreen(&mut self) -> Result<()> {
-        if !self.fullscreen_entered {
-            terminal::enable_raw_mode().context("Failed to enter terminal raw mode")?;
-            self.terminal
-                .backend_mut()
-                .queue(terminal::EnterAlternateScreen)
-                .context("Failed to enter fullscreen in terminal")?
-                .queue(cursor::Hide)
-                .context("Failed to hide cursor when setting up terminal")?
-                .flush()
-                .context("Failed to flush terminal setup to stdout")?;
-            self.fullscreen_entered = true
-        }
-        Ok(())
-    }
-
-    pub fn exit_fullscreen(&mut self) -> Result<()> {
-        if self.fullscreen_entered {
-            self.terminal
-                .backend_mut()
-                .queue(terminal::LeaveAlternateScreen)
-                .context("Failed to exit fullscreen in terminal")?
-                .queue(cursor::Show)
-                .context("Failed to re-enable the cursor on fullscreen exit")?
-                .flush()
-                .context("Failed to flush terminal cleanup")?;
-            terminal::disable_raw_mode().context("Failed to disable terminal raw mode")?;
-            self.fullscreen_entered = false;
-        }
-        Ok(())
     }
 
     pub fn render(&mut self, change_list: &ChangeList) -> Result<()> {
@@ -261,6 +236,43 @@ impl FullscreenRenderer<'_> {
         let line = vec![Span::styled("[Esc]", BLUE_TEXT), Span::raw(" Back")];
         let size = " [Esc] Back".len() as u16;
         (Block::default().title(Line::from(line)), size)
+    }
+}
+
+impl Drop for FullscreenRenderer<'_> {
+    fn drop(&mut self) {
+        let stdout = self.terminal.backend_mut();
+
+        let alternate_screen_err = stdout
+            .queue(terminal::LeaveAlternateScreen)
+            .context("Failed to leave the alternate screen")
+            .err();
+
+        let show_cursor_err = stdout
+            .queue(cursor::Show)
+            .context("Failed to re-enable the cursor")
+            .err();
+
+        let flush_err = stdout
+            .flush()
+            .context("Failed to flush terminal cleanup")
+            .err();
+
+        let raw_mode_err = terminal::disable_raw_mode()
+            .context("Failed to disable terminal raw mode")
+            .err();
+
+        for error in [
+            alternate_screen_err,
+            show_cursor_err,
+            flush_err,
+            raw_mode_err,
+        ]
+        .into_iter()
+        .flatten()
+        {
+            writeln!(stdout, "Error on cleanup: {error}").expect("Failed to write to stdout");
+        }
     }
 }
 

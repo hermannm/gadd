@@ -26,7 +26,7 @@ enum Signal {
 
 pub(crate) fn run_event_loop(
     change_list: &mut ChangeList,
-    renderer: &mut FullscreenRenderer,
+    mut renderer: FullscreenRenderer,
 ) -> Result<()> {
     #[cfg(windows)]
     handle_initial_enter_press_windows()
@@ -67,11 +67,12 @@ pub(crate) fn run_event_loop(
                         renderer,
                         fetch_signal_sender.clone(),
                     ) {
-                        Ok(Signal::Continue) => {
+                        Ok(Some(returned_renderer)) => {
+                            renderer = returned_renderer;
                             input_signal_sender.must_send(Signal::Continue);
                             continue;
                         }
-                        Ok(Signal::Stop) => {
+                        Ok(None) => {
                             stop_input_worker();
                             stop_fetch_worker();
                             return Ok(());
@@ -105,12 +106,13 @@ pub(crate) fn run_event_loop(
     })
 }
 
-fn handle_user_input(
+/// Consumes renderer if user requested exit, otherwise returns it to continue rendering fullscreen.
+fn handle_user_input<'a>(
     event: KeyEvent,
     change_list: &mut ChangeList,
-    renderer: &mut FullscreenRenderer,
+    mut renderer: FullscreenRenderer<'a>,
     fetch_signal_sender: Sender<Signal>,
-) -> Result<Signal> {
+) -> Result<Option<FullscreenRenderer<'a>>> {
     use KeyCode::*;
 
     match renderer.mode {
@@ -168,17 +170,14 @@ fn handle_user_input(
                 renderer.render(change_list)?;
             }
             (Enter, _) => {
-                renderer
-                    .exit_fullscreen()
-                    .context("Failed to reset terminal state before entering commit")?;
-                Command::new("git")
-                    .arg("commit")
-                    .status()
-                    .context("Failed to run 'git commit'")?;
-                return Ok(Signal::Stop);
+                let mut commit = Command::new("git");
+                commit.arg("commit");
+                drop(renderer); // Exits fullscreen
+                commit.status().context("Failed to run 'git commit'")?;
+                return Ok(None);
             }
             (Esc, _) | (Char('c'), KeyModifiers::CONTROL) => {
-                return Ok(Signal::Stop);
+                return Ok(None);
             }
             _ => {}
         },
@@ -188,13 +187,13 @@ fn handle_user_input(
                 renderer.render(change_list)?;
             }
             (Char('c'), KeyModifiers::CONTROL) => {
-                return Ok(Signal::Stop);
+                return Ok(None);
             }
             _ => {}
         },
     }
 
-    Ok(Signal::Continue)
+    Ok(Some(renderer))
 }
 
 fn run_input_worker(event_sender: Sender<Event>, signal_receiver: Receiver<Signal>) {
