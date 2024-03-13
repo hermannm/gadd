@@ -6,7 +6,7 @@ use std::{process::Command, thread};
 
 use crate::{
     changes::{
-        branches::{LocalBranch, UpstreamBranch, UpstreamCommitsDiff},
+        branches::{FetchStatus, LocalBranch, UpstreamBranch, UpstreamCommitsDiff},
         change_list::ChangeList,
     },
     rendering::fullscreen::{FullscreenRenderer, RenderMode},
@@ -147,12 +147,16 @@ fn handle_user_input(
                 renderer.render(change_list)?;
             }
             (Char('f'), _) => {
-                change_list.set_fetching();
-                renderer.render(change_list)?;
+                if let Some(upstream) = &change_list.upstream {
+                    if upstream.fetch_status != FetchStatus::Fetching {
+                        change_list.set_fetching();
+                        renderer.render(change_list)?;
 
-                fetch_signal_sender
-                    .send(Signal::Continue)
-                    .context("Failed to reach worker thread to refetch upstream changes")?;
+                        fetch_signal_sender
+                            .send(Signal::Continue)
+                            .context("Failed to reach worker thread to refetch upstream changes")?;
+                    }
+                }
             }
             (Char('h'), _) => {
                 renderer.mode = RenderMode::HelpScreen;
