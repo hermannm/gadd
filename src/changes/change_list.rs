@@ -4,7 +4,7 @@ use git2::{Index, IndexAddOption, Repository, StatusOptions, Statuses, Tree};
 use crate::statuses::{ConflictingStatus, Status, WORKTREE_STATUSES};
 
 use super::{
-    branches::{get_current_branch, FetchStatus, LocalBranch, UpstreamBranch, UpstreamCommitsDiff},
+    branches::{get_current_branch, LocalBranch, UpstreamBranch, UpstreamCommitsDiff},
     change::Change,
     change_ordering::ChangeOrdering,
 };
@@ -259,25 +259,6 @@ impl<'repo> ChangeList<'repo> {
 
         if let Some(index) = first_worktree_change_index {
             self.index_of_selected_change = index;
-        }
-    }
-
-    pub fn set_fetch_complete(&mut self, commits_diff: UpstreamCommitsDiff) {
-        if let Some(upstream) = &mut self.upstream {
-            upstream.commits_diff = commits_diff;
-            upstream.fetch_status = FetchStatus::FetchComplete;
-        }
-    }
-
-    pub fn set_fetch_failed(&mut self) {
-        if let Some(upstream) = &mut self.upstream {
-            upstream.fetch_status = FetchStatus::FetchFailed;
-        }
-    }
-
-    pub fn set_fetching(&mut self) {
-        if let Some(upstream) = &mut self.upstream {
-            upstream.fetch_status = FetchStatus::Fetching;
         }
     }
 

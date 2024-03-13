@@ -88,12 +88,17 @@ pub(crate) fn run_event_loop(
                     return Err(err);
                 }
                 Event::FetchComplete(upstream_diff) => {
-                    change_list.set_fetch_complete(upstream_diff);
-                    renderer.render(change_list)?;
+                    if let Some(upstream) = &mut change_list.upstream {
+                        upstream.commits_diff = upstream_diff;
+                        upstream.fetch_status = FetchStatus::FetchComplete;
+                        renderer.render(change_list)?;
+                    }
                 }
                 Event::FetchError(_) => {
-                    change_list.set_fetch_failed();
-                    renderer.render(change_list)?;
+                    if let Some(upstream) = &mut change_list.upstream {
+                        upstream.fetch_status = FetchStatus::FetchFailed;
+                        renderer.render(change_list)?;
+                    }
                 }
             }
         }
@@ -147,9 +152,9 @@ fn handle_user_input(
                 renderer.render(change_list)?;
             }
             (Char('f'), _) => {
-                if let Some(upstream) = &change_list.upstream {
+                if let Some(upstream) = &mut change_list.upstream {
                     if upstream.fetch_status != FetchStatus::Fetching {
-                        change_list.set_fetching();
+                        upstream.fetch_status = FetchStatus::Fetching;
                         renderer.render(change_list)?;
 
                         fetch_signal_sender
