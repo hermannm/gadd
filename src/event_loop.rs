@@ -2,7 +2,10 @@ use anyhow::{Context, Error, Result};
 use crossbeam_channel::{Receiver, Sender};
 use crossterm::event::{self, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
 use git2::Repository;
-use std::{process::Command, thread};
+use std::{
+    process::Command,
+    thread::{self, JoinHandle},
+};
 
 use crate::{
     changes::{
@@ -186,7 +189,7 @@ fn handle_user_input<'a>(
 }
 
 fn spawn_input_thread(event_sender: Sender<Event>, signal_receiver: Receiver<Signal>) {
-    thread::spawn(move || {
+    spawn_named_thread("UserInput", move || {
         let send_err = |err: Error| event_sender.must_send(Event::UserInputError(err));
 
         loop {
@@ -221,7 +224,7 @@ fn spawn_fetch_thread(
     event_sender: Sender<Event>,
     signal_receiver: Receiver<Signal>,
 ) {
-    thread::spawn(move || {
+    spawn_named_thread("Fetcher", move || {
         let send_err = |err: Error| event_sender.must_send(Event::FetchError(err));
 
         let Ok(repo) = Repository::discover(".")
@@ -271,6 +274,18 @@ fn spawn_fetch_thread(
             }
         }
     });
+}
+
+pub fn spawn_named_thread<F, T>(name: &str, function: F) -> JoinHandle<T>
+where
+    F: FnOnce() -> T,
+    F: Send + 'static,
+    T: Send + 'static,
+{
+    thread::Builder::new()
+        .name(name.to_string())
+        .spawn(function)
+        .unwrap_or_else(|err| panic!("Failed to spawn thread '{name}': {err}"))
 }
 
 #[cfg(windows)]
