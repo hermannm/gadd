@@ -18,16 +18,6 @@ use crate::{
 
 use super::status_symbols::{get_status_symbols, StatusSymbol};
 
-const INPUT_CONTROLS: [[&str; 2]; 7] = [
-    ["[Space]", "Stage"],
-    ["[R]", "Unstage"],
-    ["[A]", "Stage all"],
-    ["[U]", "Unstage all"],
-    ["[F]", "Fetch"],
-    ["[Enter]", "Commit"],
-    ["[Esc]", "Exit"],
-];
-
 pub(crate) struct FullscreenRenderer<'stdout> {
     pub mode: RenderMode,
     terminal: Terminal<CrosstermBackend<&'stdout mut Stdout>>,
@@ -97,7 +87,7 @@ impl FullscreenRenderer<'_> {
 
                 match self.mode {
                     RenderMode::ChangeList => {
-                        let list_widget = FullscreenRenderer::list_widget_from_changes(change_list);
+                        let list_widget = Self::list_widget_from_changes(change_list);
                         frame.render_stateful_widget(
                             list_widget,
                             main_layout[0],
@@ -105,7 +95,7 @@ impl FullscreenRenderer<'_> {
                         );
                     }
                     RenderMode::HelpScreen => {
-                        let (help_screen, size) = FullscreenRenderer::new_help_screen_widget();
+                        let (help_screen, size) = Self::new_help_screen_widget();
                         let help_screen_layout = Layout::default()
                             .direction(Direction::Vertical)
                             .constraints([Constraint::Min(1), Constraint::Length(size)])
@@ -115,8 +105,8 @@ impl FullscreenRenderer<'_> {
                 };
 
                 let (shortcut_widget, shortcut_size) = match self.mode {
-                    RenderMode::ChangeList => FullscreenRenderer::new_help_shortcut_widget(),
-                    RenderMode::HelpScreen => FullscreenRenderer::new_back_shortcut_widget(),
+                    RenderMode::ChangeList => Self::new_help_shortcut_widget(),
+                    RenderMode::HelpScreen => Self::new_back_shortcut_widget(),
                 };
 
                 let bottom_bar_layout = Layout::default()
@@ -124,7 +114,7 @@ impl FullscreenRenderer<'_> {
                     .constraints([Constraint::Min(1), Constraint::Length(shortcut_size)])
                     .split(main_layout[1]);
 
-                let branch_status = FullscreenRenderer::new_branch_status_widget(change_list);
+                let branch_status = Self::new_branch_status_widget(change_list);
                 frame.render_widget(branch_status, bottom_bar_layout[0]);
 
                 frame.render_widget(shortcut_widget, bottom_bar_layout[1])
@@ -151,7 +141,7 @@ impl FullscreenRenderer<'_> {
 
         for (i, change) in change_list.changes.iter().enumerate().rev() {
             let is_selected = i == change_list.index_of_selected_change;
-            let list_item = FullscreenRenderer::list_item_widget_from_change(change, is_selected);
+            let list_item = Self::list_item_widget_from_change(change, is_selected);
             list_items.push(list_item);
         }
 
@@ -227,16 +217,26 @@ impl FullscreenRenderer<'_> {
         Block::default().title(Line::from(line))
     }
 
+    const INPUT_CONTROLS: [[&str; 2]; 7] = [
+        ["[Space]", "Stage"],
+        ["[R]", "Unstage"],
+        ["[A]", "Stage all"],
+        ["[U]", "Unstage all"],
+        ["[F]", "Fetch"],
+        ["[Enter]", "Commit"],
+        ["[Esc]", "Exit"],
+    ];
+
     /// Returns (widget, size).
     fn new_help_screen_widget() -> (Paragraph<'static>, u16) {
-        let mut lines = Vec::<Line>::with_capacity(2 + INPUT_CONTROLS.len());
+        let mut lines = Vec::<Line>::with_capacity(2 + Self::INPUT_CONTROLS.len());
 
         lines.push(Line::raw(
             "gadd - command-line utility for staging changes to Git.",
         ));
         lines.push(Line::raw(""));
 
-        for [keybind, description] in INPUT_CONTROLS {
+        for [keybind, description] in Self::INPUT_CONTROLS {
             lines.push(Line::from(vec![
                 Span::raw("  "),
                 Span::styled(keybind, BLUE_TEXT),
