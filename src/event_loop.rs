@@ -261,13 +261,15 @@ fn spawn_fetch_thread(
             return;
         };
 
-        let _ = with_authentication(&url, &config, |credentials| {
-            let mut callbacks = RemoteCallbacks::new();
-            callbacks.credentials(credentials);
-            let mut options = FetchOptions::new();
-            options.remote_callbacks(callbacks);
+        loop {
+            let mut signal = Signal::Continue;
 
-            loop {
+            let _ = with_authentication(&url, &config, |credentials| {
+                let mut callbacks = RemoteCallbacks::new();
+                callbacks.credentials(credentials);
+                let mut options = FetchOptions::new();
+                options.remote_callbacks(callbacks);
+
                 if let Ok(()) = remote
                     .fetch(&[&upstream.name], Some(&mut options), None)
                     .with_context(|| format!("Failed to fetch upstream '{}'", upstream.full_name))
@@ -284,15 +286,17 @@ fn spawn_fetch_thread(
                     }
                 };
 
-                match signal_receiver.must_recv() {
-                    Signal::Continue => continue,
-                    Signal::Stop => break,
-                }
-            }
+                signal = signal_receiver.must_recv();
 
-            Ok(())
-        })
-        .map_err(send_err);
+                Ok(())
+            })
+            .map_err(send_err);
+
+            match signal {
+                Signal::Continue => continue,
+                Signal::Stop => break,
+            }
+        }
     });
 }
 
