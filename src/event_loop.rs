@@ -148,13 +148,13 @@ fn handle_user_input<'a>(
             }
             (Char('f'), _) => {
                 if let Some(upstream) = &mut change_list.upstream {
-                    if upstream.fetch_status == FetchStatus::Complete {
-                        upstream.fetch_status = FetchStatus::Fetching;
-                        renderer.render(change_list)?;
+                    if upstream.fetch_status != FetchStatus::Fetching {
+                        match fetch_signal_sender.send(Signal::Continue) {
+                            Ok(()) => upstream.fetch_status = FetchStatus::Fetching,
+                            Err(_) => upstream.fetch_status = FetchStatus::Failed,
+                        }
 
-                        fetch_signal_sender.send(Signal::Continue).context(
-                            "Failed to reach thread responsible for fetching upstream changes",
-                        )?;
+                        renderer.render(change_list)?;
                     }
                 }
             }
