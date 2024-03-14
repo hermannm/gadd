@@ -2,6 +2,7 @@ use std::fs::File;
 
 use anyhow::{Context, Result};
 use changes::change_list::ChangeList;
+use clap::Parser;
 use event_loop::run_event_loop;
 use git2::Repository;
 use rendering::{fullscreen::FullscreenRenderer, inline::render_inline};
@@ -12,30 +13,43 @@ mod fetch;
 mod rendering;
 mod statuses;
 
+/// Command-line utility for staging changes to Git (alternative to git-add's interactive mode).
+#[derive(Parser, Debug)]
+struct Args {
+    /// Skip the interactive staging area and just print the current status of the repository, in a
+    /// similar format to `git status -s`.
+    #[arg(short, long)]
+    status: bool,
+}
+
 fn main() -> Result<()> {
+    let args = Args::parse();
+
     let repo =
         Repository::discover(".").context("Failed to find Git repository at current location")?;
 
     let mut change_list = ChangeList::new(&repo)?;
 
-    if change_list.changes.is_empty() {
-        println!("No changes!");
-        return Ok(());
-    }
-
     let mut stdout = get_raw_stdout();
 
-    let mut renderer = FullscreenRenderer::new(&mut stdout)?;
-    renderer.render(&change_list)?;
-    // Consumes renderer, exiting fullscreen when it's done
-    run_event_loop(&mut change_list, renderer)?;
+    if !args.status {
+        if change_list.changes.is_empty() {
+            println!("No changes!");
+            return Ok(());
+        }
 
-    change_list
-        .refresh_changes()
-        .context("Failed to refresh changes on exit")?;
-    change_list
-        .update_upstream_commits_diff()
-        .context("Failed to update difference with upstream on exit")?;
+        let mut renderer = FullscreenRenderer::new(&mut stdout)?;
+        renderer.render(&change_list)?;
+        // Consumes renderer, exiting fullscreen when it's done
+        run_event_loop(&mut change_list, renderer)?;
+
+        change_list
+            .refresh_changes()
+            .context("Failed to refresh changes on exit")?;
+        change_list
+            .update_upstream_commits_diff()
+            .context("Failed to update difference with upstream on exit")?;
+    }
 
     render_inline(&mut stdout, &change_list).context("Failed to render changes on exit")?;
 

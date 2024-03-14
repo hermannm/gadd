@@ -13,6 +13,7 @@ exclude = ["cross-compile.sh"]
 
 [dependencies]
 anyhow = "1.0.70"
+clap = { version = "4.5.2", features = ["derive"] }
 crossbeam = "0.8.4"
 crossbeam-channel = "0.5.12"
 crossterm = { version = "0.26.1", default-features = false }
