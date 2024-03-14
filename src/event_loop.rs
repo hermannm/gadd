@@ -1,18 +1,17 @@
 use anyhow::{Context, Error, Result};
 use crossbeam_channel::{Receiver, Sender};
 use crossterm::event::{self, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use git2::{BranchType, Config, FetchOptions, RemoteCallbacks, Repository};
 use std::{
     process::Command,
     thread::{self, JoinHandle},
 };
 
 use crate::{
-    auth::with_authentication,
     changes::{
         branches::{FetchStatus, LocalBranch, UpstreamBranch, UpstreamCommitsDiff},
         change_list::ChangeList,
     },
+    fetch::fetch,
     rendering::fullscreen::{FullscreenRenderer, RenderMode},
 };
 
@@ -190,31 +189,27 @@ fn handle_user_input<'a>(
 }
 
 fn spawn_input_thread(event_sender: Sender<Event>, signal_receiver: Receiver<Signal>) {
-    spawn_named_thread("UserInput", move || {
-        let send_err = |err: Error| event_sender.must_send(Event::UserInputError(err));
+    spawn_named_thread("UserInput", move || loop {
+        let Ok(user_input) = event::read()
+            .context("Failed to read user input")
+            .map_err(|err| event_sender.must_send(Event::UserInputError(err)))
+        else {
+            return;
+        };
 
-        loop {
-            let Ok(user_input) = event::read()
-                .context("Failed to read user input")
-                .map_err(send_err)
-            else {
-                return;
-            };
+        let event::Event::Key(user_input) = user_input else {
+            continue;
+        };
 
-            let event::Event::Key(user_input) = user_input else {
-                continue;
-            };
+        if user_input.kind != KeyEventKind::Press {
+            continue;
+        }
 
-            if user_input.kind != KeyEventKind::Press {
-                continue;
-            }
+        event_sender.must_send(Event::UserInput(user_input));
 
-            event_sender.must_send(Event::UserInput(user_input));
-
-            match signal_receiver.must_recv() {
-                Signal::Continue => continue,
-                Signal::Stop => break,
-            }
+        match signal_receiver.must_recv() {
+            Signal::Continue => continue,
+            Signal::Stop => break,
         }
     });
 }
@@ -228,82 +223,10 @@ fn spawn_fetch_thread(
     spawn_named_thread("Fetcher", move || {
         let Some(upstream) = upstream else { return };
 
-        let send_err = |err: Error| event_sender.must_send(Event::FetchError(err));
-
-        let Ok(repo) = Repository::discover(".")
-            .context("Failed to find Git repository at current location")
-            .map_err(send_err)
-        else {
-            return;
-        };
-
-        let Ok(mut remote) = repo
-            .find_remote(&upstream.remote_name)
-            .with_context(|| format!("Failed to find remote with name '{}'", upstream.remote_name))
-            .map_err(send_err)
-        else {
-            return;
-        };
-
-        let Ok(url) = remote
-            .url()
-            .map(|url| url.to_string())
-            .context("Remote URL was not valid UTF-8")
-            .map_err(send_err)
-        else {
-            return;
-        };
-
-        let Ok(config) = Config::open_default()
-            .context("Failed to open Git config for authenticating fetch")
-            .map_err(send_err)
-        else {
-            return;
-        };
-
-        let Ok(current_branch_reference) = repo
-            .find_branch(&current_branch.name, BranchType::Local)
-            .with_context(|| format!("Failed to find branch with name {}", current_branch.name))
-            .map_err(send_err)
-        else {
-            return;
-        };
-
         loop {
-            if let Ok(()) = with_authentication(&url, &config, |credentials| {
-                let mut callbacks = RemoteCallbacks::new();
-                callbacks.credentials(credentials);
-                let mut options = FetchOptions::new();
-                options.remote_callbacks(callbacks);
-
-                remote
-                    .fetch(&[&upstream.name], Some(&mut options), None)
-                    .with_context(|| format!("Failed to fetch upstream '{}'", upstream.full_name))
-            })
-            .map_err(send_err)
-            {
-                if let Ok(upstream_reference) = current_branch_reference
-                    .upstream()
-                    .context("Failed to get upstream of current branch")
-                    .map_err(send_err)
-                {
-                    if let Ok(new_upstream_object_id) = upstream_reference
-                        .get()
-                        .target()
-                        .context("Failed to get the Git object ID of the upstream branch")
-                        .map_err(send_err)
-                    {
-                        if let Ok(commits_diff) = UpstreamCommitsDiff::from_repo(
-                            &repo,
-                            current_branch.object_id,
-                            new_upstream_object_id,
-                        )
-                        .map_err(send_err)
-                        {
-                            event_sender.must_send(Event::FetchComplete(commits_diff))
-                        }
-                    };
-                }
+            match fetch(&current_branch, &upstream) {
+                Ok(upstream_diff) => event_sender.must_send(Event::FetchComplete(upstream_diff)),
+                Err(err) => event_sender.must_send(Event::FetchError(err)),
             }
 
             match signal_receiver.must_recv() {

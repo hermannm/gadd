@@ -1,10 +1,59 @@
-/// Copied from Cargo (Apache 2.0/MIT license), but adapted to work without Cargo internals.
-/// Source: https://github.com/rust-lang/cargo/blob/7065f0ef4aa267a7455e1c478b5ccacb7baea59c/src/cargo/sources/git/utils.rs#L533-L798
 use std::env;
 
-use anyhow::Result;
-use git2::ErrorClass;
+use anyhow::{Context, Result};
+use git2::{BranchType, Config, ErrorClass, FetchOptions, RemoteCallbacks, Repository};
 
+use crate::changes::branches::{LocalBranch, UpstreamBranch, UpstreamCommitsDiff};
+
+pub(crate) fn fetch(
+    current_branch: &LocalBranch,
+    upstream: &UpstreamBranch,
+) -> Result<UpstreamCommitsDiff> {
+    let repo =
+        Repository::discover(".").context("Failed to find Git repository at current location")?;
+
+    let mut remote = repo
+        .find_remote(&upstream.remote_name)
+        .with_context(|| format!("Failed to find remote with name '{}'", upstream.remote_name))?;
+
+    let url = remote
+        .url()
+        .map(|url| url.to_string())
+        .context("Remote URL was not valid UTF-8")?;
+
+    let config =
+        Config::open_default().context("Failed to open Git config for authenticating fetch")?;
+
+    let current_branch_reference = repo
+        .find_branch(&current_branch.name, BranchType::Local)
+        .with_context(|| format!("Failed to find branch with name {}", current_branch.name))?;
+
+    with_authentication(&url, &config, |credentials| {
+        let mut callbacks = RemoteCallbacks::new();
+        callbacks.credentials(credentials);
+        let mut options = FetchOptions::new();
+        options.remote_callbacks(callbacks);
+
+        remote
+            .fetch(&[&upstream.name], Some(&mut options), None)
+            .with_context(|| format!("Failed to fetch upstream '{}'", upstream.full_name))
+    })?;
+
+    let upstream_reference = current_branch_reference
+        .upstream()
+        .context("Failed to get upstream of current branch")?;
+
+    let new_upstream_object_id = upstream_reference
+        .get()
+        .target()
+        .context("Failed to get the Git object ID of the upstream branch")?;
+
+    UpstreamCommitsDiff::from_repo(&repo, current_branch.object_id, new_upstream_object_id)
+}
+
+/// Copied from Cargo (Apache 2.0/MIT license), but adapted to work without Cargo internals.
+/// Source: https://github.com/rust-lang/cargo/blob/7065f0ef4aa267a7455e1c478b5ccacb7baea59c/src/cargo/sources/git/utils.rs#L533-L798
+///
 /// Prepare the authentication callbacks for cloning a git repository.
 ///
 /// The main purpose of this function is to construct the "authentication
