@@ -2,7 +2,9 @@
 
 # gadd
 
-Command-line utility for staging changes to Git (alternative to git-add's interactive mode). Written in Rust, using [git2-rs](https://github.com/rust-lang/git2-rs) to interact with Git, and [ratatui](https://github.com/tui-rs-revival/ratatui) for the terminal UI.
+Command-line utility for staging changes to Git (alternative to git-add's interactive mode). Written
+in Rust, using [git2-rs](https://github.com/rust-lang/git2-rs) to interact with Git, and
+[ratatui](https://github.com/tui-rs-revival/ratatui) for the terminal UI.
 
 ## Screenshots
 
@@ -27,9 +29,11 @@ The Git staging area in `gadd`:
   - On Linux/MacOS:
     - Using zsh: `echo 'export PATH=${HOME}/bin:${PATH}' >> ~/.zshrc`
     - Using Bash: `echo 'export PATH=${HOME}/bin:${PATH}' >> ~/.bashrc`
-    - These examples assume you saved `gadd` in `${HOME}/bin` - replace it with your own path if you saved it somewhere else
+    - These examples assume you saved `gadd` in `${HOME}/bin` - replace it with your own path if you
+      saved it somewhere else
   - On Windows:
-    - Use the Windows search bar to search for "Edit environment variables", and open the suggested control panel
+    - Use the Windows search bar to search for "Edit environment variables", and open the suggested
+      control panel
     - Under "User variables for \[user\]", find the one called "Path", and click "Edit..."
     - Click "New", and enter the path to the folder where you saved `gadd.exe`
 - Restart your terminal
@@ -37,4 +41,5 @@ The Git staging area in `gadd`:
 
 ## Credits
 
-- Git logo adapted from [Jason Long](https://git-scm.com/downloads/logos) (licensed under [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/))
+- Git logo adapted from [Jason Long](https://git-scm.com/downloads/logos) (licensed under
+  [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/))
