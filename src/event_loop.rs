@@ -1,7 +1,7 @@
 use anyhow::{Context, Error, Result};
 use crossbeam_channel::{Receiver, Sender};
 use crossterm::event::{self, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use git2::{Config, FetchOptions, RemoteCallbacks, Repository};
+use git2::{BranchType, Config, FetchOptions, RemoteCallbacks, Repository};
 use std::{
     process::Command,
     thread::{self, JoinHandle},
@@ -261,38 +261,52 @@ fn spawn_fetch_thread(
             return;
         };
 
-        loop {
-            let mut signal = Signal::Continue;
+        let Ok(current_branch_reference) = repo
+            .find_branch(&current_branch.name, BranchType::Local)
+            .with_context(|| format!("Failed to find branch with name {}", current_branch.name))
+            .map_err(send_err)
+        else {
+            return;
+        };
 
-            let _ = with_authentication(&url, &config, |credentials| {
+        loop {
+            if let Ok(()) = with_authentication(&url, &config, |credentials| {
                 let mut callbacks = RemoteCallbacks::new();
                 callbacks.credentials(credentials);
                 let mut options = FetchOptions::new();
                 options.remote_callbacks(callbacks);
 
-                if let Ok(()) = remote
+                remote
                     .fetch(&[&upstream.name], Some(&mut options), None)
                     .with_context(|| format!("Failed to fetch upstream '{}'", upstream.full_name))
+            })
+            .map_err(send_err)
+            {
+                if let Ok(upstream_reference) = current_branch_reference
+                    .upstream()
+                    .context("Failed to get upstream of current branch")
                     .map_err(send_err)
                 {
-                    if let Ok(commits_diff) = UpstreamCommitsDiff::from_repo(
-                        &repo,
-                        current_branch.object_id,
-                        upstream.object_id,
-                    )
-                    .map_err(send_err)
+                    if let Ok(new_upstream_object_id) = upstream_reference
+                        .get()
+                        .target()
+                        .context("Failed to get the Git object ID of the upstream branch")
+                        .map_err(send_err)
                     {
-                        event_sender.must_send(Event::FetchComplete(commits_diff))
-                    }
-                };
+                        if let Ok(commits_diff) = UpstreamCommitsDiff::from_repo(
+                            &repo,
+                            current_branch.object_id,
+                            new_upstream_object_id,
+                        )
+                        .map_err(send_err)
+                        {
+                            event_sender.must_send(Event::FetchComplete(commits_diff))
+                        }
+                    };
+                }
+            }
 
-                signal = signal_receiver.must_recv();
-
-                Ok(())
-            })
-            .map_err(send_err);
-
-            match signal {
+            match signal_receiver.must_recv() {
                 Signal::Continue => continue,
                 Signal::Stop => break,
             }
