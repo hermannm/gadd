@@ -51,7 +51,7 @@ fn main() -> Result<()> {
             .context("Failed to update difference with upstream on exit")?;
     }
 
-    render_inline(&mut stdout, &change_list).context("Failed to render changes on exit")?;
+    render_inline(&mut stdout, &change_list).context("Failed to render changes")?;
 
     Ok(())
 }
