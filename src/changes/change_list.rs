@@ -13,7 +13,7 @@ pub(crate) struct ChangeList<'repo> {
     pub changes: Vec<Change>,
     pub index_of_selected_change: usize,
     ordering: ChangeOrdering,
-    pub repo: &'repo Repository,
+    repo: &'repo Repository,
     index: Index,
     pub current_branch: LocalBranch,
     pub upstream: Option<UpstreamBranch>,
