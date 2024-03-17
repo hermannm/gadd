@@ -251,14 +251,12 @@ where
 
 #[cfg(windows)]
 fn handle_initial_enter_press_windows() -> Result<()> {
-    use crossterm::event::KeyEvent;
-
     loop {
         let event = event::read().context("Failed to read user input")?;
 
         if matches!(
             event,
-            Event::Key(KeyEvent {
+            event::Event::Key(KeyEvent {
                 code: KeyCode::Enter,
                 ..
             })
