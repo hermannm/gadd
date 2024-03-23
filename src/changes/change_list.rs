@@ -207,7 +207,10 @@ impl<'repo> ChangeList<'repo> {
         let repo_head_tree = get_repo_head_tree(self.repo)?;
 
         for change in &self.changes {
-            change.unstage(&mut self.index, &repo_head_tree)?;
+            // Trying to unstage a non-added file causes an error
+            if change.status != Status::NonConflicting(git2::Status::WT_NEW) {
+                change.unstage(&mut self.index, &repo_head_tree)?;
+            }
         }
 
         self.index.write().context("Failed to write to Git index")?;
