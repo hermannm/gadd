@@ -168,6 +168,15 @@ fn handle_user_input<'a>(
                 commit.status().context("Failed to run 'git commit'")?;
                 return Ok(None);
             }
+            (Char('m'), _) => {
+                let mut commit = Command::new("git");
+                commit.arg("commit").arg("--amend");
+                drop(renderer); // Exits fullscreen
+                commit
+                    .status()
+                    .context("Failed to run 'git commit --amend'")?;
+                return Ok(None);
+            }
             (Esc, _) | (Char('c'), KeyModifiers::CONTROL) => {
                 return Ok(None);
             }
