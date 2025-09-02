@@ -61,6 +61,14 @@ When publishing a new release:
   ```
   TAG=vX.Y.Z && git commit -m "Release ${TAG}" && git tag -a "${TAG}" -m "Release ${TAG}" && git log --oneline -2
   ```
+- Compile release binaries for all platforms:
+  ```
+  ./crosscompile.sh
+  ```
+  - You may have to install [`cross`](https://github.com/cross-rs/cross) first:
+    ```
+    cargo install cross --git https://github.com/cross-rs/cross
+    ```
 - Publish to [crates.io](https://crates.io):
   ```
   cargo publish
@@ -72,15 +80,7 @@ When publishing a new release:
   git push && git push --tags
   ```
   - Our release workflow will then create a GitHub release with the pushed tag's changelog entry
-- Compile release binaries for all platforms:
-  ```
-  ./crosscompile.sh
-  ```
-  - You may have to install [`cross`](https://github.com/cross-rs/cross) first:
-    ```
-    cargo install cross --git https://github.com/cross-rs/cross
-    ```
-- Attach binaries to release on GitHub:
+- Attach binaries (built in cross-compile step above) to release on GitHub:
   [github.com/hermannm/gadd/releases](https://github.com/hermannm/gadd/releases)
 
 ## Credits
