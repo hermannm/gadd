@@ -20,7 +20,7 @@ crosscompile() {
         docker run -t --rm \
             --volume "${PWD}":/root/src \
             --workdir /root/src \
-            joseluisq/rust-linux-darwin-builder:1.76.0 \
+            joseluisq/rust-linux-darwin-builder:1.86.0 \
             sh -c "CARGO_BUILD_TARGET='${target}' CARGO_TARGET_DIR='target/build/${target}' ${ccs} cargo build --release --target=${target}";
     else
         # Env variables to mitigate glibc version errors (https://github.com/cross-rs/cross/wiki/FAQ#glibc-version-error)

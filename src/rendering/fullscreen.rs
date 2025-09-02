@@ -30,7 +30,7 @@ pub(crate) enum RenderMode {
 }
 
 impl FullscreenRenderer<'_> {
-    pub fn new(stdout: &mut Stdout) -> Result<FullscreenRenderer> {
+    pub fn new(stdout: &mut Stdout) -> Result<FullscreenRenderer<'_>> {
         terminal::enable_raw_mode().context("Failed to enter terminal raw mode")?;
         stdout
             .queue(terminal::EnterAlternateScreen)
@@ -40,7 +40,7 @@ impl FullscreenRenderer<'_> {
             .flush()
             .context("Failed to flush terminal setup to stdout")?;
 
-        let terminal = ratatui::Terminal::new(CrosstermBackend::new(stdout))
+        let terminal = Terminal::new(CrosstermBackend::new(stdout))
             .context("Failed to create terminal instance")?;
 
         Ok(FullscreenRenderer {
@@ -58,7 +58,7 @@ impl FullscreenRenderer<'_> {
                 let main_layout = Layout::default()
                     .direction(Direction::Vertical)
                     .constraints([Constraint::Min(1), Constraint::Length(1)])
-                    .split(frame.size());
+                    .split(frame.area());
 
                 match self.mode {
                     RenderMode::ChangeList => {
@@ -123,7 +123,7 @@ impl FullscreenRenderer<'_> {
         List::new(list_items).direction(ListDirection::BottomToTop)
     }
 
-    fn list_item_widget_from_change(change: &Change, is_selected: bool) -> ListItem {
+    fn list_item_widget_from_change(change: &Change, is_selected: bool) -> ListItem<'_> {
         let mut line = Vec::<Span>::new();
 
         for status_symbol in get_status_symbols(&change.status) {

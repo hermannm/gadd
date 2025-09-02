@@ -286,7 +286,7 @@ impl<'repo> ChangeList<'repo> {
     }
 }
 
-fn get_statuses(repo: &Repository) -> Result<Statuses> {
+fn get_statuses(repo: &Repository) -> Result<Statuses<'_>> {
     let mut options = StatusOptions::default();
     options.include_ignored(false);
     options.include_untracked(true);
@@ -295,7 +295,7 @@ fn get_statuses(repo: &Repository) -> Result<Statuses> {
         .context("Failed to get change statuses for repository")
 }
 
-fn get_repo_head_tree(repo: &Repository) -> Result<Tree> {
+fn get_repo_head_tree(repo: &Repository) -> Result<Tree<'_>> {
     let head = repo
         .head()
         .context("Failed to get HEAD reference from repository")?;

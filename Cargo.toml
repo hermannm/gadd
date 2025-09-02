@@ -12,18 +12,16 @@ homepage = "https://hermannm.dev/gadd"
 exclude = ["cross-compile.sh"]
 
 [dependencies]
-anyhow = "1.0.70"
-clap = { version = "4.5.2", features = ["derive"] }
-crossbeam = "0.8.4"
-crossbeam-channel = "0.5.12"
-crossterm = { version = "0.26.1", default-features = false }
-git2 = { version = "0.17.1", features = [
+anyhow = "1.0.99"
+clap = { version = "4.5.47", features = ["derive"] }
+crossbeam-channel = "0.5.15"
+crossterm = { version = "0.29.0", default-features = false, features = ["events"] }
+git2 = { version = "0.20.2", features = [
     "ssh",
     "https",
-    "ssh_key_from_memory",
     "vendored-openssl",
 ] }
-ratatui = "0.26.1"
+ratatui = "0.29.0"
 
 [target.'cfg(windows)'.dependencies]
 kernel32-sys = "0.2.2"

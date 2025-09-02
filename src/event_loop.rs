@@ -19,7 +19,7 @@ enum Event {
     UserInput(KeyEvent),
     UserInputError(Error),
     FetchComplete(UpstreamCommitsDiff),
-    FetchError(Error),
+    FetchError(#[allow(dead_code)] Error),
 }
 
 enum Signal {
