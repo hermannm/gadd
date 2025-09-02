@@ -1,5 +1,10 @@
 # Changelog
 
+## [v0.5.1] - 2025-09-02
+
+- Add support for committing with `--amend` directly from `gadd` (bound to `M` key)
+- Fix unstaging of all changes when there are new files in working tree
+
 ## [v0.5.0] - 2024-03-17
 
 - Add branch status display
