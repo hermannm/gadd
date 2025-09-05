@@ -14,7 +14,7 @@ in Rust, using [git2-rs](https://github.com/rust-lang/git2-rs) to interact with 
 - [Installation](#installation)
   - [Through Cargo (Rust package manager)](#through-cargo-rust-package-manager)
   - [Manually](#manually)
-- [Developer's guide](#developers-guide)
+- [Maintainer's guide](#maintainers-guide)
 - [Credits](#credits)
 
 ## Screenshots
@@ -50,9 +50,9 @@ The Git staging area in `gadd`:
 - Restart your terminal
 - You should now be able to type `gadd` inside a Git repo in the terminal to manage your changes!
 
-## Developer's guide
+## Maintainer's guide
 
-When publishing a new release:
+### Publishing a new release
 
 - Bump version in `Cargo.toml`
 - Add an entry to `CHANGELOG.md` (with the current date)
