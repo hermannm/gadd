@@ -27,6 +27,7 @@ The Git staging area in `gadd`:
 
 ### Through Cargo (Rust package manager)
 
+- Install Rust: https://rust-lang.org/tools/install
 - Run `cargo install gadd`
 - You should now be able to type `gadd` inside a Git repo in the terminal to manage your changes!
 
