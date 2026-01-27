@@ -1,5 +1,9 @@
 # Changelog
 
+## [v0.5.2] - 2026-01-27
+
+- Update dependencies
+
 ## [v0.5.1] - 2025-09-02
 
 - Add support for committing with `--amend` directly from `gadd` (bound to `M` key)
@@ -31,7 +35,11 @@
 
 - Initial release
 
-[Unreleased]: https://github.com/hermannm/gadd/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/hermannm/gadd/compare/v0.5.2...HEAD
+
+[v0.5.2]: https://github.com/hermannm/gadd/compare/v0.5.1...v0.5.2
+
+[v0.5.1]: https://github.com/hermannm/gadd/compare/v0.5.0...v0.5.1
 
 [v0.5.0]: https://github.com/hermannm/gadd/compare/v0.4.0...v0.5.0
 
