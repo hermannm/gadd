@@ -1,10 +1,7 @@
 use anyhow::{Context, Error, Result};
 use crossbeam_channel::{Receiver, Sender};
 use crossterm::event::{self, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use std::{
-    process::Command,
-    thread::{self, JoinHandle},
-};
+use std::{env, process::Command, thread::{self, JoinHandle}};
 
 use crate::{
     changes::{
@@ -164,6 +161,8 @@ fn handle_user_input<'a>(
             (Enter, _) => {
                 let mut commit = Command::new("git");
                 commit.arg("commit");
+                add_custom_commit_flags(&mut commit);
+
                 drop(renderer); // Exits fullscreen
                 commit.status().context("Failed to run 'git commit'")?;
                 return Ok(None);
@@ -171,6 +170,8 @@ fn handle_user_input<'a>(
             (Char('m'), _) => {
                 let mut commit = Command::new("git");
                 commit.arg("commit").arg("--amend");
+                add_custom_commit_flags(&mut commit);
+
                 drop(renderer); // Exits fullscreen
                 commit
                     .status()
@@ -195,6 +196,22 @@ fn handle_user_input<'a>(
     }
 
     Ok(Some(renderer))
+}
+
+/// Allows the user to add flags to the `git commit` command run when the user presses Enter inside
+/// gadd. For example, adding `--no-verify` to circumvent annoying precommit hooks.
+fn add_custom_commit_flags(command: &mut Command) {
+    /// Defensive measure to prevent "hijacking" of commits by changing the GADD_COMMIT_FLAGS
+    /// environment variable. Consider expanding this list in the future.
+    const ALLOWED_CUSTOM_COMMIT_FLAGS: &[&str] = &["-n", "--no-verify"];
+
+    let Ok(custom_commit_flags_string) = env::var("GADD_COMMIT_FLAGS") else { return };
+
+    for custom_commit_flag in custom_commit_flags_string.split(' ') {
+        if ALLOWED_CUSTOM_COMMIT_FLAGS.contains(&custom_commit_flag) {
+            command.arg(custom_commit_flag);
+        }
+    }
 }
 
 fn spawn_input_thread(event_sender: Sender<Event>, signal_receiver: Receiver<Signal>) {
