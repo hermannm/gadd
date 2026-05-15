@@ -1,8 +1,4 @@
-use anyhow::{Context, Error, Result};
-use crossbeam_channel::{Receiver, Sender};
-use crossterm::event::{self, KeyCode, KeyEvent, KeyEventKind, KeyModifiers};
-use std::{env, process::Command, thread::{self, JoinHandle}};
-
+use crate::config::ConfigLoader;
 use crate::{
     changes::{
         branches::{FetchStatus, LocalBranch, UpstreamBranch, UpstreamCommitsDiff},
@@ -11,6 +7,10 @@ use crate::{
     fetch::fetch,
     rendering::fullscreen::{FullscreenRenderer, RenderMode},
 };
+use anyhow::{anyhow, Context, Error, Result};
+use crossbeam_channel::{Receiver, Sender};
+use crossterm::event::{self, KeyEvent, KeyEventKind, KeyModifiers};
+use std::{process::Command, thread::{self, JoinHandle}};
 
 enum Event {
     UserInput(KeyEvent),
@@ -52,11 +52,19 @@ pub(crate) fn run_event_loop(
         let _ = fetch_signal_sender.send(Signal::Stop);
     };
 
+    let mut config_loader = ConfigLoader::new();
+
     loop {
         let event = event_receiver.recv()?;
         match event {
             Event::UserInput(event) => {
-                match handle_user_input(event, change_list, renderer, fetch_signal_sender.clone()) {
+                match handle_user_input(
+                    event,
+                    change_list,
+                    renderer,
+                    fetch_signal_sender.clone(),
+                    &mut config_loader,
+                ) {
                     Ok(Some(returned_renderer)) => {
                         renderer = returned_renderer;
                         input_signal_sender.must_send(Signal::Continue);
@@ -101,8 +109,9 @@ fn handle_user_input<'a>(
     change_list: &mut ChangeList,
     mut renderer: FullscreenRenderer<'a>,
     fetch_signal_sender: Sender<Signal>,
+    config_loader: &mut ConfigLoader,
 ) -> Result<Option<FullscreenRenderer<'a>>> {
-    use KeyCode::*;
+    use crossterm::event::KeyCode::*;
 
     match renderer.mode {
         RenderMode::ChangeList => match (event.code, event.modifiers) {
@@ -161,7 +170,7 @@ fn handle_user_input<'a>(
             (Enter, _) => {
                 let mut commit = Command::new("git");
                 commit.arg("commit");
-                add_custom_commit_flags(&mut commit);
+                add_custom_commit_flags(&mut commit, config_loader)?;
 
                 drop(renderer); // Exits fullscreen
                 commit.status().context("Failed to run 'git commit'")?;
@@ -170,7 +179,7 @@ fn handle_user_input<'a>(
             (Char('m'), _) => {
                 let mut commit = Command::new("git");
                 commit.arg("commit").arg("--amend");
-                add_custom_commit_flags(&mut commit);
+                add_custom_commit_flags(&mut commit, config_loader)?;
 
                 drop(renderer); // Exits fullscreen
                 commit
@@ -198,20 +207,19 @@ fn handle_user_input<'a>(
     Ok(Some(renderer))
 }
 
-/// Allows the user to add flags to the `git commit` command run when the user presses Enter inside
-/// gadd. For example, adding `--no-verify` to circumvent annoying precommit hooks.
-fn add_custom_commit_flags(command: &mut Command) {
-    /// Defensive measure to prevent "hijacking" of commits by changing the GADD_COMMIT_FLAGS
-    /// environment variable. Consider expanding this list in the future.
-    const ALLOWED_CUSTOM_COMMIT_FLAGS: &[&str] = &["-n", "--no-verify"];
+/// Allows the user to set a Git config variable to add flags to the `git commit` command that runs
+/// when the user presses Enter inside gadd. For example, adding `--no-verify` to circumvent
+/// annoying precommit hooks.
+fn add_custom_commit_flags(command: &mut Command, config_loader: &mut ConfigLoader) -> Result<()> {
+    let config = config_loader.get_config()
+        .as_mut()
+        .map_err(|err| with_context(err, "Failed to get config for commit flags"))?;
 
-    let Ok(custom_commit_flags_string) = env::var("GADD_COMMIT_FLAGS") else { return };
-
-    for custom_commit_flag in custom_commit_flags_string.split(' ') {
-        if ALLOWED_CUSTOM_COMMIT_FLAGS.contains(&custom_commit_flag) {
-            command.arg(custom_commit_flag);
-        }
+    for flag in &config.commit_flags {
+        command.arg(flag);
     }
+
+    Ok(())
 }
 
 fn spawn_input_thread(event_sender: Sender<Event>, signal_receiver: Receiver<Signal>) {
@@ -292,7 +300,7 @@ fn handle_initial_enter_press_windows() -> Result<()> {
     }
 }
 
-trait MustSend<T> {
+pub(crate) trait MustSend<T> {
     fn must_send(&self, msg: T);
 }
 
@@ -303,7 +311,7 @@ impl<T> MustSend<T> for Sender<T> {
     }
 }
 
-trait MustReceive<T> {
+pub(crate) trait MustReceive<T> {
     fn must_recv(&self) -> T;
 }
 
@@ -311,5 +319,13 @@ impl<T> MustReceive<T> for Receiver<T> {
     fn must_recv(&self) -> T {
         self.recv()
             .expect("Thread communication failure: Channel disconnected")
+    }
+}
+
+/// Utility for dealing with [ContextLoader::get_config].
+fn with_context(err: &mut Option<Error>, context: &'static str) -> Error {
+    match err.take() {
+        Some(err) => err.context(context),
+        None => anyhow!(context),
     }
 }

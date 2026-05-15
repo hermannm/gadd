@@ -1,17 +1,17 @@
-use std::fs::File;
-
 use anyhow::{Context, Result};
 use changes::change_list::ChangeList;
 use clap::Parser;
 use event_loop::run_event_loop;
 use git2::Repository;
 use rendering::{fullscreen::FullscreenRenderer, inline::render_inline};
+use std::fs::File;
 
 mod changes;
 mod event_loop;
 mod fetch;
 mod rendering;
 mod statuses;
+mod config;
 
 /// Command-line utility for staging changes to Git (alternative to git-add's interactive mode).
 #[derive(Parser, Debug)]
@@ -25,8 +25,7 @@ struct Args {
 fn main() -> Result<()> {
     let args = Args::parse();
 
-    let repo =
-        Repository::discover(".").context("Failed to find Git repository at current location")?;
+    let repo = open_repository()?;
 
     let mut change_list = ChangeList::new(&repo)?;
 
@@ -54,6 +53,10 @@ fn main() -> Result<()> {
     render_inline(&mut stdout, &change_list).context("Failed to render changes")?;
 
     Ok(())
+}
+
+pub(crate) fn open_repository() -> Result<Repository> {
+    Repository::discover(".").context("Failed to find Git repository at current location")
 }
 
 type Stdout = File;
