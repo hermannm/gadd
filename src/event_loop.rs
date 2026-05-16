@@ -1,7 +1,7 @@
 use crate::config::ConfigLoader;
 use crate::{
     changes::{
-        branches::{FetchStatus, LocalBranch, UpstreamBranch, UpstreamCommitsDiff},
+        branches::{FetchStatus, LocalBranch, UpstreamCommitsDiff},
         change_list::ChangeList,
     },
     fetch::fetch,
@@ -43,7 +43,6 @@ pub(crate) fn run_event_loop(
     spawn_input_thread(event_sender.clone(), input_signal_receiver);
     spawn_fetch_thread(
         change_list.current_branch.clone(),
-        change_list.upstream.clone(),
         event_sender,
         fetch_signal_receiver,
     );
@@ -270,23 +269,18 @@ fn spawn_input_thread(event_sender: Sender<Event>, signal_receiver: Receiver<Sig
 
 fn spawn_fetch_thread(
     current_branch: LocalBranch,
-    upstream: Option<UpstreamBranch>,
     event_sender: Sender<Event>,
     signal_receiver: Receiver<Signal>,
 ) {
-    spawn_named_thread("Fetcher", move || {
-        let Some(upstream) = upstream else { return };
+    spawn_named_thread("Fetcher", move || loop {
+        match fetch(&current_branch) {
+            Ok(upstream_diff) => event_sender.must_send(Event::FetchComplete(upstream_diff)),
+            Err(err) => event_sender.must_send(Event::FetchError(err)),
+        }
 
-        loop {
-            match fetch(&current_branch, &upstream) {
-                Ok(upstream_diff) => event_sender.must_send(Event::FetchComplete(upstream_diff)),
-                Err(err) => event_sender.must_send(Event::FetchError(err)),
-            }
-
-            match signal_receiver.must_recv() {
-                Signal::Continue => continue,
-                Signal::Stop => break,
-            }
+        match signal_receiver.must_recv() {
+            Signal::Continue => continue,
+            Signal::Stop => break,
         }
     });
 }
