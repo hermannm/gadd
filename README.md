@@ -81,10 +81,6 @@ git config --global gadd.commitFlags '<flags>'
 - Bump version in `Cargo.toml`
 - Add an entry to `CHANGELOG.md` (with the current date)
     - Remember to update the link section, and bump the version for the `[Unreleased]` link
-- Create commit and tag for the release (update `TAG` variable in below command):
-  ```
-  TAG=vX.Y.Z && git commit -m "Release ${TAG}" && git tag -a "${TAG}" -m "Release ${TAG}" && git log --oneline -2
-  ```
 - Compile release binaries for all platforms:
   ```
   ./crosscompile.sh
@@ -93,6 +89,10 @@ git config --global gadd.commitFlags '<flags>'
       ```
       cargo install cross --git https://github.com/cross-rs/cross
       ```
+- Create commit and tag for the release (update `TAG` variable in below command):
+  ```
+  TAG=vX.Y.Z && git commit -m "Release ${TAG}" && git tag -a "${TAG}" -m "Release ${TAG}" && git log --oneline -2
+  ```
 - Publish to [crates.io](https://crates.io):
   ```
   cargo publish
