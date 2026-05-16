@@ -12,7 +12,7 @@ crosscompile() {
 
     # If we're running on MacOS (Darwin), we can build for MacOS directly with Cross.
     # If we're not running on MacOS, we need to use a special Docker image.
-    if [[ ${target} == *"apple-darwin"* && "${OSTYPE}" != "linux-gnu"* ]]; then
+    if [[ ${target} == *"apple-darwin"* && "${OSTYPE}" != "darwin"* ]]; then
         if [[ ${target} == *"x86_64"* ]]; then
             ccs="CC=o64-clang CXX=o64-clang++"
         elif [[ ${target} == *"aarch64"* ]]; then
@@ -22,7 +22,7 @@ crosscompile() {
         docker run -t --rm \
             --volume "${PWD}":/root/src \
             --workdir /root/src \
-            joseluisq/rust-linux-darwin-builder:1.87.0 \
+            joseluisq/rust-linux-darwin-builder:1.89.0 \
             sh -c "CARGO_BUILD_TARGET='${target}' CARGO_TARGET_DIR='target/build/${target}' ${ccs} cargo build --release --target=${target}";
     else
         # Env variables to mitigate glibc version errors (https://github.com/cross-rs/cross/wiki/FAQ#glibc-version-error)
