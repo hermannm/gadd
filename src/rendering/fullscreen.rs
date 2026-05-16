@@ -67,14 +67,6 @@ impl FullscreenRenderer<'_> {
 
                 match self.mode {
                     RenderMode::ChangeList => {
-                        if let Some(error) = error_to_display {
-                            let (error_widget, size) = Self::new_error_widget(error);
-                            let error_area =
-                                frame.area().resize(Size::new(frame.area().width, size + 2));
-                            frame.render_widget(Clear, error_area);
-                            frame.render_widget(error_widget, error_area);
-                        }
-
                         let list_widget = Self::list_widget_from_changes(change_list);
                         frame.render_stateful_widget(
                             list_widget,
@@ -83,6 +75,14 @@ impl FullscreenRenderer<'_> {
                         );
                     }
                     RenderMode::HelpScreen => {
+                        if let Some(error) = error_to_display {
+                            let (error_widget, size) = Self::new_error_widget(error);
+                            let error_area =
+                                frame.area().resize(Size::new(frame.area().width, size + 2));
+                            frame.render_widget(Clear, error_area);
+                            frame.render_widget(error_widget, error_area);
+                        }
+
                         let (help_screen, size) = Self::new_help_screen_widget();
                         let help_screen_layout = Layout::default()
                             .direction(Direction::Vertical)
