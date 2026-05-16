@@ -12,8 +12,8 @@ in Rust, using [git2-rs](https://github.com/rust-lang/git2-rs) to interact with 
 
 - [Screenshots](#screenshots)
 - [Installation](#installation)
-  - [Through Cargo (Rust package manager)](#through-cargo-rust-package-manager)
-  - [Manually](#manually)
+    - [Through Cargo (Rust package manager)](#through-cargo-rust-package-manager)
+    - [Manually](#manually)
 - [Maintainer's guide](#maintainers-guide)
 - [Credits](#credits)
 
@@ -35,21 +35,44 @@ The Git staging area in `gadd`:
 
 - Go to the [Releases page](https://github.com/hermannm/gadd/releases)
 - Download the appropriate binary for your OS and architecture under Assets
-  - On Linux/MacOS: Save the file as `gadd`
-  - On Windows: Save the file as `gadd.exe`
+    - On Linux/MacOS: Save the file as `gadd`
+    - On Windows: Save the file as `gadd.exe`
 - Update your `PATH` environment variable to include the folder where you saved `gadd`
-  - On Linux/MacOS:
-    - Using zsh: `echo 'export PATH=${HOME}/bin:${PATH}' >> ~/.zshrc`
-    - Using Bash: `echo 'export PATH=${HOME}/bin:${PATH}' >> ~/.bashrc`
-    - These examples assume you saved `gadd` in `${HOME}/bin` - replace it with your own path if you
-      saved it somewhere else
-  - On Windows:
-    - Use the Windows search bar to search for "Edit environment variables", and open the suggested
-      control panel
-    - Under "User variables for \[user\]", find the one called "Path", and click "Edit..."
-    - Click "New", and enter the path to the folder where you saved `gadd.exe`
+    - On Linux/MacOS:
+        - Using zsh: `echo 'export PATH=${HOME}/bin:${PATH}' >> ~/.zshrc`
+        - Using Bash: `echo 'export PATH=${HOME}/bin:${PATH}' >> ~/.bashrc`
+        - These examples assume you saved `gadd` in `${HOME}/bin` - replace it with your own path if
+          you
+          saved it somewhere else
+    - On Windows:
+        - Use the Windows search bar to search for "Edit environment variables", and open the
+          suggested
+          control panel
+        - Under "User variables for \[user\]", find the one called "Path", and click "Edit..."
+        - Click "New", and enter the path to the folder where you saved `gadd.exe`
 - Restart your terminal
 - You should now be able to type `gadd` inside a Git repo in the terminal to manage your changes!
+
+## Configuration
+
+`gadd` has 1 config option, set through `git config`:
+
+- `gadd.commitFlags`: A space-separated list of extra arguments to add to the `git commit` command
+  that runs when you press `Enter` inside `gadd`
+    - Also added to the `git commit --amend` command that runs when you press 'm'
+    - Example use-case: Adding `--no-verify` to skip annoying pre-commit hooks
+
+You can set this for one specific repo with:
+
+```sh
+git config gadd.commitFlags '<flags>'
+```
+
+...or globally with:
+
+```
+git config --global gadd.commitFlags '<flags>'
+```
 
 ## Maintainer's guide
 
@@ -57,7 +80,7 @@ The Git staging area in `gadd`:
 
 - Bump version in `Cargo.toml`
 - Add an entry to `CHANGELOG.md` (with the current date)
-  - Remember to update the link section, and bump the version for the `[Unreleased]` link
+    - Remember to update the link section, and bump the version for the `[Unreleased]` link
 - Create commit and tag for the release (update `TAG` variable in below command):
   ```
   TAG=vX.Y.Z && git commit -m "Release ${TAG}" && git tag -a "${TAG}" -m "Release ${TAG}" && git log --oneline -2
@@ -66,21 +89,21 @@ The Git staging area in `gadd`:
   ```
   ./crosscompile.sh
   ```
-  - You may have to install [`cross`](https://github.com/cross-rs/cross) first:
-    ```
-    cargo install cross --git https://github.com/cross-rs/cross
-    ```
+    - You may have to install [`cross`](https://github.com/cross-rs/cross) first:
+      ```
+      cargo install cross --git https://github.com/cross-rs/cross
+      ```
 - Publish to [crates.io](https://crates.io):
   ```
   cargo publish
   ```
-  - You may have to run `cargo login` first - see the Cargo book for help:
-    [doc.rust-lang.org/cargo/reference/publishing.html](https://doc.rust-lang.org/cargo/reference/publishing.html)
+    - You may have to run `cargo login` first - see the Cargo book for help:
+      [doc.rust-lang.org/cargo/reference/publishing.html](https://doc.rust-lang.org/cargo/reference/publishing.html)
 - Push the commit and tag:
   ```
   git push && git push --tags
   ```
-  - Our release workflow will then create a GitHub release with the pushed tag's changelog entry
+    - Our release workflow will then create a GitHub release with the pushed tag's changelog entry
 - Attach binaries (built in cross-compile step above) to release on GitHub:
   [github.com/hermannm/gadd/releases](https://github.com/hermannm/gadd/releases)
 
