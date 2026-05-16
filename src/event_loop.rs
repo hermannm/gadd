@@ -10,13 +10,16 @@ use crate::{
 use anyhow::{anyhow, Context, Error, Result};
 use crossbeam_channel::{Receiver, Sender};
 use crossterm::event::{self, KeyEvent, KeyEventKind, KeyModifiers};
-use std::{process::Command, thread::{self, JoinHandle}};
+use std::{
+    process::Command,
+    thread::{self, JoinHandle},
+};
 
 enum Event {
     UserInput(KeyEvent),
     UserInputError(Error),
     FetchComplete(UpstreamCommitsDiff),
-    FetchError(#[allow(dead_code)] Error),
+    FetchError(Error),
 }
 
 enum Signal {
@@ -54,6 +57,8 @@ pub(crate) fn run_event_loop(
 
     let mut config_loader = ConfigLoader::new();
 
+    let mut error_to_display: Option<DisplayedError> = None;
+
     loop {
         let event = event_receiver.recv()?;
         match event {
@@ -64,6 +69,7 @@ pub(crate) fn run_event_loop(
                     renderer,
                     fetch_signal_sender.clone(),
                     &mut config_loader,
+                    error_to_display.as_ref(),
                 ) {
                     Ok(Some(returned_renderer)) => {
                         renderer = returned_renderer;
@@ -87,16 +93,28 @@ pub(crate) fn run_event_loop(
                 return Err(err);
             }
             Event::FetchComplete(upstream_diff) => {
+                // Clear previous fetch error
+                if error_to_display
+                    .as_ref()
+                    .is_some_and(|error| matches!(error.kind, DisplayedErrorKind::FetchError))
+                {
+                    error_to_display = None;
+                }
+
                 if let Some(upstream) = &mut change_list.upstream {
                     upstream.commits_diff = upstream_diff;
                     upstream.fetch_status = FetchStatus::Complete;
-                    renderer.render(change_list)?;
+                    renderer.render(change_list, error_to_display.as_ref())?;
                 }
             }
-            Event::FetchError(_) => {
+            Event::FetchError(error) => {
+                error_to_display = Some(DisplayedError {
+                    kind: DisplayedErrorKind::FetchError,
+                    error,
+                });
                 if let Some(upstream) = &mut change_list.upstream {
                     upstream.fetch_status = FetchStatus::Failed;
-                    renderer.render(change_list)?;
+                    renderer.render(change_list, error_to_display.as_ref())?;
                 }
             }
         }
@@ -110,6 +128,7 @@ fn handle_user_input<'a>(
     mut renderer: FullscreenRenderer<'a>,
     fetch_signal_sender: Sender<Signal>,
     config_loader: &mut ConfigLoader,
+    error_to_display: Option<&DisplayedError>,
 ) -> Result<Option<FullscreenRenderer<'a>>> {
     use crossterm::event::KeyCode::*;
 
@@ -117,39 +136,39 @@ fn handle_user_input<'a>(
         RenderMode::ChangeList => match (event.code, event.modifiers) {
             (Up, _) => {
                 change_list.select_previous_change();
-                renderer.render(change_list)?;
+                renderer.render(change_list, error_to_display)?;
             }
             (Down, _) => {
                 change_list.select_next_change();
-                renderer.render(change_list)?;
+                renderer.render(change_list, error_to_display)?;
             }
             (Char(' '), _) => {
                 change_list
                     .stage_selected_change()
                     .context("Failed to stage selected change")?;
 
-                renderer.render(change_list)?;
+                renderer.render(change_list, error_to_display)?;
             }
             (Char('r'), _) => {
                 change_list
                     .unstage_selected_change()
                     .context("Failed to unstage selected change")?;
 
-                renderer.render(change_list)?;
+                renderer.render(change_list, error_to_display)?;
             }
             (Char('a'), _) => {
                 change_list
                     .stage_all_changes()
                     .context("Failed to stage all changes")?;
 
-                renderer.render(change_list)?;
+                renderer.render(change_list, error_to_display)?;
             }
             (Char('u'), _) => {
                 change_list
                     .unstage_all_changes()
                     .context("Failed to unstage all changes")?;
 
-                renderer.render(change_list)?;
+                renderer.render(change_list, error_to_display)?;
             }
             (Char('f'), _) => {
                 if let Some(upstream) = &mut change_list.upstream {
@@ -159,13 +178,13 @@ fn handle_user_input<'a>(
                             Err(_) => upstream.fetch_status = FetchStatus::Failed,
                         }
 
-                        renderer.render(change_list)?;
+                        renderer.render(change_list, error_to_display)?;
                     }
                 }
             }
             (Char('h'), _) => {
                 renderer.mode = RenderMode::HelpScreen;
-                renderer.render(change_list)?;
+                renderer.render(change_list, error_to_display)?;
             }
             (Enter, _) => {
                 let mut commit = Command::new("git");
@@ -195,7 +214,7 @@ fn handle_user_input<'a>(
         RenderMode::HelpScreen => match (event.code, event.modifiers) {
             (Esc, _) => {
                 renderer.mode = RenderMode::ChangeList;
-                renderer.render(change_list)?;
+                renderer.render(change_list, error_to_display)?;
             }
             (Char('c'), KeyModifiers::CONTROL) => {
                 return Ok(None);
@@ -211,7 +230,8 @@ fn handle_user_input<'a>(
 /// when the user presses Enter inside gadd. For example, adding `--no-verify` to circumvent
 /// annoying precommit hooks.
 fn add_custom_commit_flags(command: &mut Command, config_loader: &mut ConfigLoader) -> Result<()> {
-    let config = config_loader.get_config()
+    let config = config_loader
+        .get_config()
         .as_mut()
         .map_err(|err| with_context(err, "Failed to get config for commit flags"))?;
 
@@ -281,6 +301,23 @@ where
         .name(name.to_string())
         .spawn(function)
         .unwrap_or_else(|err| panic!("Failed to spawn thread '{name}': {err}"))
+}
+
+pub(crate) struct DisplayedError {
+    pub kind: DisplayedErrorKind,
+    pub error: Error,
+}
+
+pub(crate) enum DisplayedErrorKind {
+    FetchError,
+}
+
+impl DisplayedErrorKind {
+    pub fn title(&self) -> &'static str {
+        match self {
+            DisplayedErrorKind::FetchError => "Fetch error",
+        }
+    }
 }
 
 #[cfg(windows)]

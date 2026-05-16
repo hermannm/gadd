@@ -7,11 +7,11 @@ use rendering::{fullscreen::FullscreenRenderer, inline::render_inline};
 use std::fs::File;
 
 mod changes;
+mod config;
 mod event_loop;
 mod fetch;
 mod rendering;
 mod statuses;
-mod config;
 
 /// Command-line utility for staging changes to Git (alternative to git-add's interactive mode).
 #[derive(Parser, Debug)]
@@ -38,7 +38,7 @@ fn main() -> Result<()> {
         }
 
         let mut renderer = FullscreenRenderer::new(&mut stdout)?;
-        renderer.render(&change_list)?;
+        renderer.render(&change_list, None)?;
         // Consumes renderer, exiting fullscreen when it's done
         run_event_loop(&mut change_list, renderer)?;
 

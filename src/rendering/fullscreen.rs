@@ -1,7 +1,15 @@
 use std::io::Write;
 
+use super::status_symbols::{get_status_symbols, StatusSymbol};
+use crate::event_loop::DisplayedError;
+use crate::{
+    changes::{branches::FetchStatus, change::Change, change_list::ChangeList},
+    Stdout,
+};
 use anyhow::{Context, Result};
 use crossterm::{cursor, terminal, QueueableCommand};
+use ratatui::layout::Size;
+use ratatui::widgets::{Clear, Wrap};
 use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
@@ -10,13 +18,6 @@ use ratatui::{
     widgets::{Block, List, ListDirection, ListItem, ListState, Paragraph},
     Terminal,
 };
-
-use crate::{
-    changes::{branches::FetchStatus, change::Change, change_list::ChangeList},
-    Stdout,
-};
-
-use super::status_symbols::{get_status_symbols, StatusSymbol};
 
 pub(crate) struct FullscreenRenderer<'stdout> {
     pub mode: RenderMode,
@@ -50,7 +51,11 @@ impl FullscreenRenderer<'_> {
         })
     }
 
-    pub fn render(&mut self, change_list: &ChangeList) -> Result<()> {
+    pub fn render(
+        &mut self,
+        change_list: &ChangeList,
+        error_to_display: Option<&DisplayedError>,
+    ) -> Result<()> {
         self.update_list_widget_state(change_list);
 
         self.terminal
@@ -62,6 +67,14 @@ impl FullscreenRenderer<'_> {
 
                 match self.mode {
                     RenderMode::ChangeList => {
+                        if let Some(error) = error_to_display {
+                            let (error_widget, size) = Self::new_error_widget(error);
+                            let error_area =
+                                frame.area().resize(Size::new(frame.area().width, size + 2));
+                            frame.render_widget(Clear, error_area);
+                            frame.render_widget(error_widget, error_area);
+                        }
+
                         let list_widget = Self::list_widget_from_changes(change_list);
                         frame.render_stateful_widget(
                             list_widget,
@@ -192,7 +205,24 @@ impl FullscreenRenderer<'_> {
         Block::default().title(Line::from(line))
     }
 
-    const INPUT_CONTROLS: [[&'static str; 2]; 8] = [
+    /// Returns (widget, size).
+    fn new_error_widget(error: &DisplayedError) -> (Paragraph<'static>, u16) {
+        let popup_block =
+            Block::bordered().title(Line::from(format!(" {} ", error.kind.title())).centered());
+        let error_text = Text::from(
+            // Use debug format, which includes cause error chain
+            format!("{:?}", error.error),
+        );
+        let size = error_text.lines.len() as u16;
+        (
+            Paragraph::new(error_text)
+                .wrap(Wrap { trim: false })
+                .block(popup_block),
+            size,
+        )
+    }
+
+    const INPUT_CONTROLS: &'static [[&'static str; 2]] = &[
         ["[Space]", "Stage"],
         ["[R]", "Unstage"],
         ["[A]", "Stage all"],
@@ -215,9 +245,9 @@ impl FullscreenRenderer<'_> {
         for [keybind, description] in Self::INPUT_CONTROLS {
             lines.push(Line::from(vec![
                 Span::raw("  "),
-                Span::styled(keybind, BLUE_TEXT),
+                Span::styled(*keybind, BLUE_TEXT),
                 Span::raw(" "),
-                Span::raw(description),
+                Span::raw(*description),
             ]))
         }
 
