@@ -314,7 +314,7 @@ fn handle_initial_enter_press_windows() -> Result<()> {
         if matches!(
             event,
             event::Event::Key(KeyEvent {
-                code: KeyCode::Enter,
+                code: crossterm::event::KeyCode::Enter,
                 ..
             })
         ) {
