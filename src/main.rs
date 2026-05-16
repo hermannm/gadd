@@ -1,3 +1,4 @@
+use crate::config::Config;
 use anyhow::{Context, Result};
 use changes::change_list::ChangeList;
 use clap::Parser;
@@ -7,6 +8,7 @@ use rendering::{fullscreen::FullscreenRenderer, inline::render_inline};
 use std::fs::File;
 
 mod changes;
+mod commands;
 mod config;
 mod event_loop;
 mod fetch;
@@ -37,10 +39,12 @@ fn main() -> Result<()> {
             return Ok(());
         }
 
+        let config = Config::load(&repo)?;
+
         let mut renderer = FullscreenRenderer::new(&mut stdout)?;
         renderer.render(&change_list, None)?;
         // Consumes renderer, exiting fullscreen when it's done
-        run_event_loop(&mut change_list, renderer)?;
+        run_event_loop(&mut change_list, renderer, &config)?;
 
         change_list
             .refresh_changes()

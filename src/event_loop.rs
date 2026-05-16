@@ -1,4 +1,4 @@
-use crate::config::ConfigLoader;
+use crate::config::Config;
 use crate::{
     changes::{
         branches::{FetchStatus, LocalBranch, UpstreamCommitsDiff},
@@ -7,7 +7,7 @@ use crate::{
     fetch::fetch,
     rendering::fullscreen::{FullscreenRenderer, RenderMode},
 };
-use anyhow::{anyhow, Context, Error, Result};
+use anyhow::{Context, Error, Result};
 use crossbeam_channel::{Receiver, Sender};
 use crossterm::event::{self, KeyEvent, KeyEventKind, KeyModifiers};
 use std::{
@@ -30,6 +30,7 @@ enum Signal {
 pub(crate) fn run_event_loop(
     change_list: &mut ChangeList,
     mut renderer: FullscreenRenderer,
+    config: &Config,
 ) -> Result<()> {
     #[cfg(windows)]
     handle_initial_enter_press_windows()
@@ -54,8 +55,6 @@ pub(crate) fn run_event_loop(
         let _ = fetch_signal_sender.send(Signal::Stop);
     };
 
-    let mut config_loader = ConfigLoader::new();
-
     let mut error_to_display: Option<DisplayedError> = None;
 
     loop {
@@ -67,8 +66,8 @@ pub(crate) fn run_event_loop(
                     change_list,
                     renderer,
                     fetch_signal_sender.clone(),
-                    &mut config_loader,
                     error_to_display.as_ref(),
+                    config,
                 ) {
                     Ok(Some(returned_renderer)) => {
                         renderer = returned_renderer;
@@ -126,8 +125,8 @@ fn handle_user_input<'a>(
     change_list: &mut ChangeList,
     mut renderer: FullscreenRenderer<'a>,
     fetch_signal_sender: Sender<Signal>,
-    config_loader: &mut ConfigLoader,
     error_to_display: Option<&DisplayedError>,
+    config: &Config,
 ) -> Result<Option<FullscreenRenderer<'a>>> {
     use crossterm::event::KeyCode::*;
 
@@ -188,7 +187,7 @@ fn handle_user_input<'a>(
             (Enter, _) => {
                 let mut commit = Command::new("git");
                 commit.arg("commit");
-                add_custom_commit_flags(&mut commit, config_loader)?;
+                add_custom_commit_flags(&mut commit, config);
 
                 drop(renderer); // Exits fullscreen
                 commit.status().context("Failed to run 'git commit'")?;
@@ -197,7 +196,7 @@ fn handle_user_input<'a>(
             (Char('m'), _) => {
                 let mut commit = Command::new("git");
                 commit.arg("commit").arg("--amend");
-                add_custom_commit_flags(&mut commit, config_loader)?;
+                add_custom_commit_flags(&mut commit, config);
 
                 drop(renderer); // Exits fullscreen
                 commit
@@ -228,17 +227,10 @@ fn handle_user_input<'a>(
 /// Allows the user to set a Git config variable to add flags to the `git commit` command that runs
 /// when the user presses Enter inside gadd. For example, adding `--no-verify` to circumvent
 /// annoying precommit hooks.
-fn add_custom_commit_flags(command: &mut Command, config_loader: &mut ConfigLoader) -> Result<()> {
-    let config = config_loader
-        .get_config()
-        .as_mut()
-        .map_err(|err| with_context(err, "Failed to get config for commit flags"))?;
-
+fn add_custom_commit_flags(command: &mut Command, config: &Config) {
     for flag in &config.commit_flags {
         command.arg(flag);
     }
-
-    Ok(())
 }
 
 fn spawn_input_thread(event_sender: Sender<Event>, signal_receiver: Receiver<Signal>) {
@@ -350,13 +342,5 @@ impl<T> MustReceive<T> for Receiver<T> {
     fn must_recv(&self) -> T {
         self.recv()
             .expect("Thread communication failure: Channel disconnected")
-    }
-}
-
-/// Utility for dealing with [ContextLoader::get_config].
-fn with_context(err: &mut Option<Error>, context: &'static str) -> Error {
-    match err.take() {
-        Some(err) => err.context(context),
-        None => anyhow!(context),
     }
 }

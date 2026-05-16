@@ -1,7 +1,7 @@
 use anyhow::{anyhow, bail, Context, Result};
 use git2::{Index, IndexAddOption, Repository, StatusOptions, Statuses, Tree};
 
-use crate::statuses::{ConflictingStatus, Status, WORKTREE_STATUSES};
+use crate::statuses::{Status, WORKTREE_STATUSES};
 
 use super::{
     branches::{get_current_branch, LocalBranch, UpstreamBranch, UpstreamCommitsDiff},
@@ -113,7 +113,7 @@ impl<'repo> ChangeList<'repo> {
 
             let change_path = conflicting_change_paths.remove(index);
 
-            use ConflictingStatus::*;
+            use crate::statuses::ConflictingStatus::*;
 
             let (ours, theirs) = match (&conflict.ancestor, &conflict.our, &conflict.their) {
                 (Some(_), Some(_), Some(_)) => (Unmerged, Unmerged),

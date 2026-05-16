@@ -9,7 +9,9 @@ pub(crate) struct LocalBranch {
 
 #[derive(Clone)]
 pub(crate) struct UpstreamBranch {
+    #[allow(dead_code)]
     pub name: String,
+    #[allow(dead_code)]
     pub remote_name: String,
     pub full_name: String,
     pub object_id: Oid,
@@ -56,7 +58,7 @@ pub(crate) fn get_current_branch(
                 .context("Failed to get name of upstream branch")?
                 .context("Upstream branch name was not valid UTF-8")?;
 
-            let (remote_name, name) = full_name
+            let (remote_name, branch_name) = full_name
                 .split_once('/')
                 .context("Failed to get remote name from upstream branch")?;
 
@@ -69,9 +71,9 @@ pub(crate) fn get_current_branch(
                 UpstreamCommitsDiff::from_repo(repo, current_branch_object_id, upstream_object_id)?;
 
             Some(UpstreamBranch {
-                name: name.to_string(),
-                remote_name: remote_name.to_string(),
-                full_name: full_name.to_string(),
+                name: branch_name.to_owned(),
+                remote_name: remote_name.to_owned(),
+                full_name: full_name.to_owned(),
                 object_id: upstream_object_id,
                 commits_diff,
                 fetch_status: FetchStatus::Fetching,
@@ -88,7 +90,7 @@ pub(crate) fn get_current_branch(
 
     Ok((
         LocalBranch {
-            name: current_branch_name.to_string(),
+            name: current_branch_name.to_owned(),
             object_id: current_branch_object_id,
         },
         upstream,
