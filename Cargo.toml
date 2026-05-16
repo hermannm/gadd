@@ -12,11 +12,11 @@ homepage = "https://hermannm.dev/gadd"
 exclude = ["cross-compile.sh"]
 
 [dependencies]
-anyhow = "1.0.100"
-clap = { version = "4.5.54", features = ["derive"] }
+anyhow = "1.0.102"
+clap = { version = "4.6.1", features = ["derive"] }
 crossbeam-channel = "0.5.15"
 crossterm = { version = "0.29.0" }
-git2 = { version = "0.20.3", features = ["ssh", "https", "vendored-openssl"] }
+git2 = { version = "0.20.4", features = ["ssh", "https", "vendored-openssl"] }
 ratatui = "0.30.0"
 
 [target.'cfg(windows)'.dependencies]
