@@ -1,5 +1,17 @@
 # Changelog
 
+## [v0.6.0] - 2026-05-16
+
+- Add `gadd.commitFlags` config option for adding arguments to `git commit`
+    - See the "Configuration" section in the README for how this works
+- Use Git CLI instead of `libgit2` for `git fetch`
+    - `libgit2` has some limitations when it comes to SSH authentication, which caused `git fetch`
+      to fail in some configurations. See this issue for more:
+      https://github.com/libgit2/libgit2/issues/4338
+- Display errors from `git fetch` in the help menu
+    - Previously, `gadd` just displayed "Fetch failed", with no context about what went wrong. Now,
+      users can enter the help menu ('H') to see more details about the error.
+
 ## [v0.5.2] - 2026-01-27
 
 - Update dependencies
@@ -35,7 +47,9 @@
 
 - Initial release
 
-[Unreleased]: https://github.com/hermannm/gadd/compare/v0.5.2...HEAD
+[Unreleased]: https://github.com/hermannm/gadd/compare/v0.6.0...HEAD
+
+[v0.6.0]: https://github.com/hermannm/gadd/compare/v0.5.2...v0.6.0
 
 [v0.5.2]: https://github.com/hermannm/gadd/compare/v0.5.1...v0.5.2
 
