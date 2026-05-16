@@ -64,7 +64,7 @@ The Git staging area in `gadd`:
 
 You can set this for one specific repo with:
 
-```sh
+```
 git config gadd.commitFlags '<flags>'
 ```
 
