@@ -8,6 +8,9 @@ use std::process::Command;
 pub(crate) fn fetch(current_branch: &LocalBranch) -> Result<UpstreamCommitsDiff> {
     let output = Command::new("git")
         .arg("fetch")
+        // Fail instead of prompting for credentials
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GIT_SSH_COMMAND", "ssh -oBatchMode=yes")
         .output()
         .context("Failed to run 'git fetch'")?;
     if !output.status.success() {
