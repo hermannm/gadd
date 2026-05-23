@@ -14,6 +14,7 @@ in Rust, using [git2-rs](https://github.com/rust-lang/git2-rs) to interact with 
 - [Installation](#installation)
     - [Through Cargo (Rust package manager)](#through-cargo-rust-package-manager)
     - [Manually](#manually)
+- [Configuration](#configuration)
 - [Maintainer's guide](#maintainers-guide)
 - [Credits](#credits)
 
